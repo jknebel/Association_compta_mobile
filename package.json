@@ -1,29 +1,30 @@
 {
-  "name": "asso-compta-mobile",
+  "name": "asso-compta-mobile-pwa",
   "version": "0.1.0",
   "private": true,
-  "main": "expo/AppEntry.js",
+  "type": "module",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
+    "dev": "vite --host",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "1.23.1",
-    "expo": "~52.0.0",
-    "expo-camera": "~16.0.0",
-    "expo-image-manipulator": "~13.0.0",
-    "expo-image-picker": "~16.0.0",
-    "expo-status-bar": "~2.0.0",
+    "@google/genai": "^1.0.0",
     "firebase": "^11.0.0",
-    "react": "18.3.1",
-    "react-native": "0.76.3"
+    "lucide-react": "^0.460.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.2",
-    "@types/react": "~18.3.12",
-    "typescript": "~5.3.3"
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.0",
+    "vite-plugin-pwa": "^0.21.0"
   }
 }
