@@ -8,7 +8,9 @@ web-build/
 *.p12
 *.key
 *.mobileprovision
+*.tsbuildinfo
 .env
+*.tsbuildinfo
 .env.local
 .DS_Store
 google-services.json

@@ -1,23 +1,62 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Header } from './components/Header';
+import { BottomNavigation, MobileTab } from './components/BottomNavigation';
+import { LoginScreen } from './screens/LoginScreen';
+import { ScanHomeScreen } from './screens/ScanHomeScreen';
+import { HistoryScreen } from './screens/HistoryScreen';
 
-/**
- * Point d'entrée de la Web App Mobile (PWA) AssoCompta Scan.
- * Voir les tickets GitHub Issues (MOB-01 à MOB-09) pour l'implémentation des écrans et du bouton d'installation PWA.
- */
+interface CurrentUser {
+  email: string;
+  displayName: string;
+  orgName: string;
+}
+
 export default function App() {
+  // État d'authentification (intégré avec Firebase Auth au ticket MOB-02)
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>({
+    email: 'membre@asso.ch',
+    displayName: 'Alexandre Dupont',
+    orgName: 'Troupe du Grand Lac'
+  });
+
+  const [activeTab, setActiveTab] = useState<MobileTab>('scan');
+
+  // Si l'utilisateur n'est pas connecté -> écran de connexion
+  if (!currentUser) {
+    return (
+      <LoginScreen
+        onLogin={(email) => {
+          setCurrentUser({
+            email,
+            displayName: email.split('@')[0],
+            orgName: 'Troupe du Grand Lac'
+          });
+        }}
+      />
+    );
+  }
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#020617', color: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: 16, padding: 24, maxWidth: 400, width: '100%' }}>
-        <div style={{ color: '#34d399', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, marginBottom: 8 }}>
-          ASSOCOMPTA SCAN (PWA MOBILE)
-        </div>
-        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 10, marginTop: 0 }}>
-          Dépôt de Pièces Justificatives & Remboursements
-        </h1>
-        <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.5, margin: 0 }}>
-          Socle Web App Mobile (PWA installable sur écran d'accueil Android & iPhone sans Store) prêt pour les tickets MOB-01 à MOB-09.
-        </p>
-      </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+      {/* En-tête mobile compact */}
+      <Header
+        userName={currentUser.displayName}
+        userEmail={currentUser.email}
+        orgName={currentUser.orgName}
+        onLogout={() => setCurrentUser(null)}
+      />
+
+      {/* Contenu principal selon l'onglet actif */}
+      <main className="flex-1 w-full max-w-md mx-auto">
+        {activeTab === 'scan' ? <ScanHomeScreen /> : <HistoryScreen />}
+      </main>
+
+      {/* Barre de navigation basse fixe (Bottom Tabs) */}
+      <BottomNavigation
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        pendingCount={0}
+      />
     </div>
   );
 }
