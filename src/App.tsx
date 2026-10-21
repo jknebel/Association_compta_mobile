@@ -1,49 +1,39 @@
 import React, { useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Header } from './components/Header';
-import { BottomNavigation, MobileTab } from './components/BottomNavigation';
+import { BottomNavigation, type MobileTab } from './components/BottomNavigation';
 import { LoginScreen } from './screens/LoginScreen';
 import { ScanHomeScreen } from './screens/ScanHomeScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
 
-interface CurrentUser {
-  email: string;
-  displayName: string;
-  orgName: string;
-}
-
-export default function App() {
-  // État d'authentification (intégré avec Firebase Auth au ticket MOB-02)
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>({
-    email: 'membre@asso.ch',
-    displayName: 'Alexandre Dupont',
-    orgName: 'Troupe du Grand Lac'
-  });
-
+const MobileAppContent: React.FC = () => {
+  const { userProfile, loading, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<MobileTab>('scan');
 
-  // Si l'utilisateur n'est pas connecté -> écran de connexion
-  if (!currentUser) {
+  if (loading) {
     return (
-      <LoginScreen
-        onLogin={(email) => {
-          setCurrentUser({
-            email,
-            displayName: email.split('@')[0],
-            orgName: 'Troupe du Grand Lac'
-          });
-        }}
-      />
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 gap-3">
+        <Loader2 size={32} className="animate-spin text-blue-500" />
+        <p className="text-xs text-slate-400">Restauration de votre session…</p>
+      </div>
     );
+  }
+
+  if (!userProfile) {
+    return <LoginScreen />;
   }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
       {/* En-tête mobile compact */}
       <Header
-        userName={currentUser.displayName}
-        userEmail={currentUser.email}
-        orgName={currentUser.orgName}
-        onLogout={() => setCurrentUser(null)}
+        userName={userProfile.displayName}
+        userEmail={userProfile.email}
+        orgName={userProfile.orgName}
+        onLogout={() => {
+          void logout();
+        }}
       />
 
       {/* Contenu principal selon l'onglet actif */}
@@ -58,5 +48,13 @@ export default function App() {
         pendingCount={0}
       />
     </div>
+  );
+};
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MobileAppContent />
+    </AuthProvider>
   );
 }
