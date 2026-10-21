@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, ArrowRight, Sparkles, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { InstallPwaBanner } from '../components/InstallPwaBanner';
 
 export const LoginScreen: React.FC = () => {
   const { login, sendPasswordReset, error: authError, clearError } = useAuth();
@@ -53,9 +54,9 @@ export const LoginScreen: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-between p-4 sm:p-6 text-slate-100 pt-safe pb-safe">
-      {/* Top Banner slot (réservé pour MOB-09 Bouton d'installation PWA) */}
+      {/* Top Banner slot (MOB-09 Bouton d'installation PWA) */}
       <div id="pwa-install-banner-slot" className="w-full max-w-sm mx-auto mb-4">
-        {/* Placeholder invisible ou guide discret */}
+        <InstallPwaBanner />
       </div>
 
       {/* Main Login Card */}
