@@ -1,11 +1,12 @@
 import React from 'react';
 import { Camera, FileUp, Sparkles, CreditCard, Wallet, ArrowRight } from 'lucide-react';
+import { InstallPwaBanner } from '../components/InstallPwaBanner';
 
 export const ScanHomeScreen: React.FC = () => {
   return (
     <div className="flex flex-col gap-4 p-4 pb-24 max-w-md mx-auto">
-      {/* Top Banner slot réservé pour MOB-09 */}
-      <div id="pwa-install-banner-slot" className="empty:hidden"></div>
+      {/* Top Banner slot MOB-09 */}
+      <InstallPwaBanner />
 
       {/* Hero Card */}
       <div className="bg-gradient-to-br from-blue-900/30 via-slate-900 to-slate-900 border border-blue-800/40 rounded-2xl p-5 shadow-lg">
