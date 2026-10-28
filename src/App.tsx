@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Header } from './components/Header';
@@ -6,10 +6,34 @@ import { BottomNavigation, type MobileTab } from './components/BottomNavigation'
 import { LoginScreen } from './screens/LoginScreen';
 import { ScanHomeScreen } from './screens/ScanHomeScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
+import {
+  getOfflineReceiptQueue,
+  syncPendingOfflineReceipts,
+} from './services/receiptUploadService';
 
 const MobileAppContent: React.FC = () => {
   const { userProfile, selectedCompta, loading, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<MobileTab>('scan');
+  const [pendingCount, setPendingCount] = useState<number>(() => getOfflineReceiptQueue().length);
+
+  const refreshQueueAndSync = useCallback(async () => {
+    setPendingCount(getOfflineReceiptQueue().length);
+    if (userProfile) {
+      const synced = await syncPendingOfflineReceipts();
+      if (synced > 0) {
+        setPendingCount(getOfflineReceiptQueue().length);
+      }
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
+    void refreshQueueAndSync();
+    const handleOnline = () => {
+      void refreshQueueAndSync();
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [refreshQueueAndSync]);
 
   if (loading) {
     return (
@@ -38,14 +62,18 @@ const MobileAppContent: React.FC = () => {
 
       {/* Contenu principal selon l'onglet actif */}
       <main className="flex-1 w-full mx-auto">
-        {activeTab === 'scan' ? <ScanHomeScreen /> : <HistoryScreen />}
+        {activeTab === 'scan' ? (
+          <ScanHomeScreen onUploadCompleted={() => void refreshQueueAndSync()} />
+        ) : (
+          <HistoryScreen />
+        )}
       </main>
 
       {/* Barre de navigation basse fixe (Bottom Tabs) */}
       <BottomNavigation
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        pendingCount={0}
+        pendingCount={pendingCount}
       />
     </div>
   );

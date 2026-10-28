@@ -20,6 +20,7 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
+  Loader2,
 } from 'lucide-react';
 import type { AuthorizedComptabilite } from '../types/receipt';
 import { getComptaRoleLabel } from '../services/comptaHelpers';
@@ -41,7 +42,9 @@ interface ReceiptPreviewProps {
   selectedCompta: AuthorizedComptabilite | null;
   onSelectCompta: (comptaId: string) => void;
   onBack: () => void;
-  onSubmitVerified: (payload: VerifiedReceiptPayload, file: PreparedReceiptFile) => void;
+  onSubmitVerified: (payload: VerifiedReceiptPayload, file: PreparedReceiptFile) => void | Promise<void>;
+  isSubmitting?: boolean;
+  submitError?: string | null;
 }
 
 export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
@@ -52,6 +55,8 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
   onSelectCompta,
   onBack,
   onSubmitVerified,
+  isSubmitting = false,
+  submitError = null,
 }) => {
   // États du visualiseur de document (Zoom, Rotation, Pliage sur mobile)
   const [zoomLevel, setZoomLevel] = useState<number>(1);
@@ -579,27 +584,36 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
             </div>
           )}
 
-          {/* Message d'erreur global si tentative de soumission invalide */}
-          {touchedSubmit && !validation.valid && validation.firstError && (
+          {/* Message d'erreur global si tentative de soumission invalide ou erreur Firebase */}
+          {(submitError || (touchedSubmit && !validation.valid && validation.firstError)) && (
             <div
               role="alert"
               className="bg-red-950/60 border border-red-500/40 rounded-xl p-3 flex items-start gap-2 text-xs text-red-200"
             >
               <AlertCircle size={15} className="text-red-400 shrink-0 mt-0.5" />
-              <span>{validation.firstError}</span>
+              <span>{submitError || validation.firstError}</span>
             </div>
           )}
 
           {/* Bouton de validation finale */}
           <button
             type="submit"
-            disabled={!validation.valid}
+            disabled={!validation.valid || isSubmitting}
             className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold py-3.5 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 disabled:shadow-none"
           >
-            <Send size={17} />
-            <span>
-              Envoyer dans {selectedCompta?.comptaName || 'la comptabilité'}
-            </span>
+            {isSubmitting ? (
+              <>
+                <Loader2 size={17} className="animate-spin" />
+                <span>Envoi du justificatif en cours…</span>
+              </>
+            ) : (
+              <>
+                <Send size={17} />
+                <span>
+                  Envoyer dans {selectedCompta?.comptaName || 'la comptabilité'}
+                </span>
+              </>
+            )}
           </button>
         </form>
       </div>
