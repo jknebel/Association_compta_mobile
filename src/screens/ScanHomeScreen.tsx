@@ -13,6 +13,7 @@ import { ReceiptDropZone } from '../components/ReceiptDropZone';
 import { useAuth } from '../contexts/AuthContext';
 import { getComptaRoleLabel } from '../services/comptaHelpers';
 import type { PreparedReceiptFile } from '../services/imageService';
+import type { ReceiptExtractionResult } from '../services/receiptExtractionService';
 
 export const ScanHomeScreen: React.FC = () => {
   const {
@@ -24,6 +25,7 @@ export const ScanHomeScreen: React.FC = () => {
     refreshComptas,
   } = useAuth();
   const [preparedFile, setPreparedFile] = useState<PreparedReceiptFile | null>(null);
+  const [extractionResult, setExtractionResult] = useState<ReceiptExtractionResult | null>(null);
 
   if (comptasLoading && authorizedComptas.length === 0) {
     return (
@@ -140,15 +142,28 @@ export const ScanHomeScreen: React.FC = () => {
         )}
       </div>
 
-      {/* Zone de capture Photo (Mobile), sélection PDF/Image et Glisser-Déposer (PC) — MOB-04 */}
+      {/* Zone de capture Photo (Mobile), sélection PDF/Image et Glisser-Déposer (PC) — MOB-04 & MOB-05 */}
       <ReceiptDropZone
         selectedComptaName={selectedCompta?.comptaName}
+        currency={selectedCompta?.currency || 'CHF'}
         preparedFile={preparedFile}
-        onFilePrepared={(prepared) => setPreparedFile(prepared)}
-        onClearFile={() => setPreparedFile(null)}
-        onContinue={(prepared) => {
+        extractionResult={extractionResult}
+        onFilePrepared={(prepared, extraction) => {
+          setPreparedFile(prepared);
+          setExtractionResult(extraction);
+        }}
+        onClearFile={() => {
+          setPreparedFile(null);
+          setExtractionResult(null);
+        }}
+        onContinue={(prepared, extraction) => {
+          const amountInfo =
+            extraction?.extractedAmount != null
+              ? `${selectedCompta?.currency || 'CHF'} ${extraction.extractedAmount.toFixed(2)}`
+              : 'Montant à compléter';
+          const dateInfo = extraction?.extractedDate ?? 'Date à compléter';
           alert(
-            `Document prêt (${prepared.normalizedName}) ! L'extraction automatique IA / PDF et l'écran de vérification s'ouvriront aux tickets MOB-05 / MOB-06.`
+            `Document analysé (${prepared.normalizedName} — ${amountInfo} — ${dateInfo}) ! L'écran complet de validation s'ouvrira au ticket MOB-06.`
           );
         }}
       />
