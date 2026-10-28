@@ -1,8 +1,13 @@
-import { doc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, isFirebaseConfigured } from '../config/firebase';
 import type { AuthorizedComptabilite, Receipt } from '../types/receipt';
 import type { MobileUserProfile } from './authHelpers';
+import {
+  mergeAndSortUserReceipts,
+  type RawReceiptWithContext,
+  type UserReceiptHistoryItem,
+} from './historyHelpers';
 import type { PreparedReceiptFile } from './imageService';
 import type { VerifiedReceiptPayload } from './verificationHelpers';
 import {
@@ -383,4 +388,91 @@ export const syncPendingOfflineReceipts = async (): Promise<number> => {
   }
 
   return syncedCount;
+};
+
+/**
+ * Récupère l'historique complet des pièces justificatives envoyées par l'utilisateur connecté
+ * dans ses comptabilités autorisées, fusionné avec les pièces locales / hors-ligne (Ticket MOB-08).
+ */
+export const fetchUserSubmittedReceipts = async (
+  uid: string,
+  email: string,
+  authorizedComptas: AuthorizedComptabilite[]
+): Promise<UserReceiptHistoryItem[]> => {
+  const cleanUid = typeof uid === 'string' ? uid.trim() : '';
+  const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+  const localHistory = getLocalSubmittedReceipts();
+  const offlineQueue = getOfflineReceiptQueue();
+  const offlineIds = new Set(offlineQueue.map((q) => q.receiptDoc.id));
+
+  const localRecords: RawReceiptWithContext[] = [
+    ...offlineQueue.map((q) => ({
+      orgId: q.orgId,
+      orgName: q.orgName,
+      comptaId: q.comptaId,
+      comptaName: q.comptaName,
+      currency: q.currency,
+      syncState: 'pending_offline' as const,
+      receipt: q.receiptDoc,
+    })),
+    ...localHistory
+      .filter((r) => !offlineIds.has(r.receipt.id))
+      .map((r) => ({
+        orgId: r.orgId,
+        orgName: r.orgName,
+        comptaId: r.comptaId,
+        comptaName: r.comptaName,
+        currency: r.currency,
+        syncState: r.syncState,
+        receipt: r.receipt,
+      })),
+  ];
+
+  if (!isFirebaseConfigured || !db || !cleanUid || authorizedComptas.length === 0) {
+    return mergeAndSortUserReceipts([], localRecords, cleanUid, cleanEmail);
+  }
+
+  const firestoreDb = db;
+  const firestoreRecords: RawReceiptWithContext[] = [];
+
+  await Promise.all(
+    authorizedComptas.map(async (compta) => {
+      try {
+        const receiptsRef = collection(
+          firestoreDb,
+          'organizations',
+          compta.orgId,
+          'comptabilites',
+          compta.comptaId,
+          'receipts'
+        );
+        const q = query(receiptsRef, where('submittedByUid', '==', cleanUid));
+        const snap = await getDocs(q);
+
+        snap.docs.forEach((docSnap) => {
+          const data = docSnap.data() as Receipt;
+          firestoreRecords.push({
+            orgId: compta.orgId,
+            orgName: compta.orgName,
+            comptaId: compta.comptaId,
+            comptaName: compta.comptaName,
+            currency: compta.currency,
+            syncState: 'synced',
+            receipt: {
+              ...data,
+              id: data.id || docSnap.id,
+            },
+          });
+        });
+      } catch (err) {
+        console.warn(
+          `Impossible de récupérer les justificatifs de ${compta.comptaName} :`,
+          err
+        );
+      }
+    })
+  );
+
+  return mergeAndSortUserReceipts(firestoreRecords, localRecords, cleanUid, cleanEmail);
 };
