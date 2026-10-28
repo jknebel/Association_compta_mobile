@@ -37,7 +37,7 @@ const MobileAppContent: React.FC = () => {
       />
 
       {/* Contenu principal selon l'onglet actif */}
-      <main className="flex-1 w-full max-w-md mx-auto">
+      <main className="flex-1 w-full mx-auto">
         {activeTab === 'scan' ? <ScanHomeScreen /> : <HistoryScreen />}
       </main>
 
