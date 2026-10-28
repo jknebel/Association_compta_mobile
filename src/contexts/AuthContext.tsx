@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from '../config/firebase';
+import { type AuthorizedComptabilite } from '../types/receipt';
 import {
   type MobileUserProfile,
   buildMobileUserProfile,
@@ -16,30 +17,46 @@ import {
   validatePasswordResetEmail,
   translateFirebaseAuthError,
 } from '../services/authHelpers';
+import {
+  getUserAuthorizedComptabilites,
+  selectDefaultComptabilite,
+  getSelectedComptaIdFromStorage,
+  saveSelectedComptaIdToStorage,
+} from '../services/mobileOrganizationService';
 
 const LOCAL_SESSION_STORAGE_KEY = 'asso_compta_mobile_session_v1';
 
 interface AuthContextValue {
   user: User | null;
   userProfile: MobileUserProfile | null;
+  authorizedComptas: AuthorizedComptabilite[];
+  selectedCompta: AuthorizedComptabilite | null;
+  comptasLoading: boolean;
   loading: boolean;
   error: string | null;
   isConfigured: boolean;
   login: (email: string, password: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
+  selectCompta: (comptaId: string) => void;
+  refreshComptas: () => Promise<void>;
   clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   userProfile: null,
+  authorizedComptas: [],
+  selectedCompta: null,
+  comptasLoading: false,
   loading: true,
   error: null,
   isConfigured: isFirebaseConfigured,
   login: async () => {},
   sendPasswordReset: async () => {},
   logout: async () => {},
+  selectCompta: () => {},
+  refreshComptas: async () => {},
   clearError: () => {},
 });
 
@@ -48,8 +65,60 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<MobileUserProfile | null>(null);
+  const [authorizedComptas, setAuthorizedComptas] = useState<AuthorizedComptabilite[]>([]);
+  const [selectedCompta, setSelectedCompta] = useState<AuthorizedComptabilite | null>(null);
+  const [comptasLoading, setComptasLoading] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  const loadAuthorizedComptasForUser = useCallback(async (uid: string, email: string) => {
+    setComptasLoading(true);
+    try {
+      const list = await getUserAuthorizedComptabilites(uid, email);
+      setAuthorizedComptas(list);
+      const preferredId = getSelectedComptaIdFromStorage();
+      const chosen = selectDefaultComptabilite(list, preferredId);
+      setSelectedCompta(chosen);
+      if (chosen) {
+        saveSelectedComptaIdToStorage(chosen.comptaId);
+      }
+    } catch (err) {
+      console.error('Erreur lors de la récupération des comptabilités autorisées :', err);
+      setAuthorizedComptas([]);
+      setSelectedCompta(null);
+    } finally {
+      setComptasLoading(false);
+    }
+  }, []);
+
+  const refreshComptas = useCallback(async () => {
+    if (!userProfile) {
+      setAuthorizedComptas([]);
+      setSelectedCompta(null);
+      return;
+    }
+    await loadAuthorizedComptasForUser(userProfile.uid, userProfile.email);
+  }, [userProfile, loadAuthorizedComptasForUser]);
+
+  const selectCompta = useCallback(
+    (comptaId: string) => {
+      const found = selectDefaultComptabilite(authorizedComptas, comptaId);
+      setSelectedCompta(found);
+      if (found) {
+        saveSelectedComptaIdToStorage(found.comptaId);
+      }
+    },
+    [authorizedComptas]
+  );
+
+  useEffect(() => {
+    if (userProfile) {
+      void loadAuthorizedComptasForUser(userProfile.uid, userProfile.email);
+    } else {
+      setAuthorizedComptas([]);
+      setSelectedCompta(null);
+    }
+  }, [userProfile, loadAuthorizedComptasForUser]);
 
   useEffect(() => {
     // Mode développement local hors-ligne si les variables VITE_FIREBASE_* ne sont pas renseignées
@@ -234,6 +303,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     setUser(null);
     setUserProfile(null);
+    setAuthorizedComptas([]);
+    setSelectedCompta(null);
   };
 
   return (
@@ -241,12 +312,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       value={{
         user,
         userProfile,
+        authorizedComptas,
+        selectedCompta,
+        comptasLoading,
         loading,
         error,
         isConfigured: isFirebaseConfigured,
         login,
         sendPasswordReset,
         logout,
+        selectCompta,
+        refreshComptas,
         clearError,
       }}
     >

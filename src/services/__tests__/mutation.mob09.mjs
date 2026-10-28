@@ -33,7 +33,7 @@ const mutants = [
   },
   {
     name: 'M6: Invert android-app:// referrer check',
-    mutate: (code) => code.replace("referrer.includes('android-app://')", "!referrer.includes('android-app://')"),
+    mutate: (code) => code.replace("currentWin.document.referrer.includes('android-app://')", "!currentWin.document.referrer.includes('android-app://')"),
   },
   {
     name: 'M7: Alter standalone navigator property check',
