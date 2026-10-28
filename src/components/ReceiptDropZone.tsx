@@ -10,26 +10,37 @@ import {
   Trash2,
   ArrowRight,
   Sparkles,
+  Calendar,
+  Coins,
+  Store,
 } from 'lucide-react';
 import {
   prepareReceiptFile,
   formatFileSize,
   type PreparedReceiptFile,
 } from '../services/imageService';
+import {
+  extractReceiptData,
+  type ReceiptExtractionResult,
+} from '../services/receiptExtractionService';
 
 interface ReceiptDropZoneProps {
   selectedComptaName?: string;
-  onFilePrepared?: (prepared: PreparedReceiptFile) => void;
+  currency?: string;
+  onFilePrepared?: (prepared: PreparedReceiptFile, extraction: ReceiptExtractionResult) => void;
   onClearFile?: () => void;
   preparedFile?: PreparedReceiptFile | null;
-  onContinue?: (prepared: PreparedReceiptFile) => void;
+  extractionResult?: ReceiptExtractionResult | null;
+  onContinue?: (prepared: PreparedReceiptFile, extraction: ReceiptExtractionResult | null) => void;
 }
 
 export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
   selectedComptaName,
+  currency = 'CHF',
   onFilePrepared,
   onClearFile,
   preparedFile: externalPreparedFile,
+  extractionResult: externalExtractionResult,
   onContinue,
 }) => {
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -37,12 +48,16 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
   const imageInputRef = useRef<HTMLInputElement | null>(null);
 
   const [internalPrepared, setInternalPrepared] = useState<PreparedReceiptFile | null>(null);
+  const [internalExtraction, setInternalExtraction] = useState<ReceiptExtractionResult | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [isExtracting, setIsExtracting] = useState<boolean>(false);
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const activePreparedFile =
     externalPreparedFile !== undefined ? externalPreparedFile : internalPrepared;
+  const activeExtraction =
+    externalExtractionResult !== undefined ? externalExtractionResult : internalExtraction;
 
   const handleSelectedRawFile = async (rawFile?: File | null) => {
     if (!rawFile) return;
@@ -54,7 +69,14 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
       if (externalPreparedFile === undefined) {
         setInternalPrepared(prepared);
       }
-      onFilePrepared?.(prepared);
+      setIsProcessing(false);
+      setIsExtracting(true);
+
+      const extraction = await extractReceiptData(prepared.file);
+      if (externalExtractionResult === undefined) {
+        setInternalExtraction(extraction);
+      }
+      onFilePrepared?.(prepared, extraction);
     } catch (err) {
       const msg =
         err instanceof Error
@@ -63,6 +85,7 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
       setError(msg);
     } finally {
       setIsProcessing(false);
+      setIsExtracting(false);
       if (cameraInputRef.current) cameraInputRef.current.value = '';
       if (pdfInputRef.current) pdfInputRef.current.value = '';
       if (imageInputRef.current) imageInputRef.current.value = '';
@@ -80,6 +103,9 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
     setError(null);
     if (externalPreparedFile === undefined) {
       setInternalPrepared(null);
+    }
+    if (externalExtractionResult === undefined) {
+      setInternalExtraction(null);
     }
     onClearFile?.();
   };
@@ -218,13 +244,79 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
             </div>
           </div>
 
+          {/* Résultat de l'extraction automatique (MOB-05 : Texte PDF natif ou OCR Gemini Vision) */}
+          <div className="bg-slate-950/85 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-blue-400">
+                <Sparkles size={13} />
+                <span>Extraction automatique</span>
+              </div>
+              {isExtracting ? (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 flex items-center gap-1">
+                  <Loader2 size={10} className="animate-spin" />
+                  Analyse en cours…
+                </span>
+              ) : activeExtraction ? (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  {activeExtraction.source === 'pdf_text'
+                    ? 'Texte PDF natif'
+                    : activeExtraction.source === 'gemini_vision'
+                    ? 'OCR Gemini Vision'
+                    : 'Saisie libre'}
+                </span>
+              ) : null}
+            </div>
+
+            {isExtracting ? (
+              <div className="py-3 flex items-center justify-center gap-2 text-xs text-slate-400">
+                <Loader2 size={15} className="animate-spin text-blue-400" />
+                <span>Recherche du montant TTC et de la date…</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="bg-slate-900 border border-slate-800 rounded-lg p-2">
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-0.5">
+                    <Coins size={11} className="text-emerald-400" />
+                    <span>Montant TTC</span>
+                  </div>
+                  <div className="font-bold text-slate-100 truncate">
+                    {activeExtraction?.extractedAmount != null
+                      ? `${currency} ${activeExtraction.extractedAmount.toFixed(2)}`
+                      : 'À saisir'}
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-lg p-2">
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-0.5">
+                    <Calendar size={11} className="text-blue-400" />
+                    <span>Date</span>
+                  </div>
+                  <div className="font-bold text-slate-100 truncate">
+                    {activeExtraction?.extractedDate ?? 'À saisir'}
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-lg p-2">
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-0.5">
+                    <Store size={11} className="text-amber-400" />
+                    <span>Fournisseur</span>
+                  </div>
+                  <div className="font-bold text-slate-100 truncate">
+                    {activeExtraction?.merchantName ?? '—'}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Bouton de poursuite vers l'analyse OCR / Vérification */}
           <button
             type="button"
-            onClick={() => onContinue?.(activePreparedFile)}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold py-3.5 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25"
+            disabled={isExtracting}
+            onClick={() => onContinue?.(activePreparedFile, activeExtraction)}
+            className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-60 text-white font-semibold py-3.5 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25"
           >
-            <span>Analyser et vérifier ce justificatif</span>
+            <span>Vérifier et envoyer ce justificatif</span>
             <ArrowRight size={17} />
           </button>
         </div>
