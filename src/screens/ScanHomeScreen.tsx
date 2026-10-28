@@ -1,8 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  Camera,
-  FileUp,
-  Sparkles,
   CreditCard,
   Wallet,
   FolderKanban,
@@ -12,8 +9,10 @@ import {
   Loader2,
 } from 'lucide-react';
 import { InstallPwaBanner } from '../components/InstallPwaBanner';
+import { ReceiptDropZone } from '../components/ReceiptDropZone';
 import { useAuth } from '../contexts/AuthContext';
 import { getComptaRoleLabel } from '../services/comptaHelpers';
+import type { PreparedReceiptFile } from '../services/imageService';
 
 export const ScanHomeScreen: React.FC = () => {
   const {
@@ -24,6 +23,7 @@ export const ScanHomeScreen: React.FC = () => {
     selectCompta,
     refreshComptas,
   } = useAuth();
+  const [preparedFile, setPreparedFile] = useState<PreparedReceiptFile | null>(null);
 
   if (comptasLoading && authorizedComptas.length === 0) {
     return (
@@ -140,44 +140,18 @@ export const ScanHomeScreen: React.FC = () => {
         )}
       </div>
 
-      {/* Hero Card */}
-      <div className="bg-gradient-to-br from-blue-900/30 via-slate-900 to-slate-900 border border-blue-800/40 rounded-2xl p-5 shadow-lg">
-        <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wide mb-1">
-          <Sparkles size={14} />
-          <span>Capture intelligente</span>
-        </div>
-        <h2 className="text-xl font-bold text-slate-100">
-          Nouveau justificatif
-        </h2>
-        <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-          Prenez votre ticket ou reçu en photo (ou importez un PDF). L'IA extraira automatiquement le montant et la date pour{' '}
-          <span className="text-slate-200 font-semibold">
-            {selectedCompta?.comptaName ?? 'votre comptabilité'}
-          </span>
-          .
-        </p>
-
-        {/* Action Buttons */}
-        <div className="mt-5 grid grid-cols-1 gap-2.5">
-          <button
-            type="button"
-            onClick={() => alert("L'ouverture de l'appareil photo sera activée au ticket MOB-04 !")}
-            className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold py-3.5 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-blue-600/25"
-          >
-            <Camera size={20} />
-            <span>Prendre le ticket en photo</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => alert("L'import d'une photo ou d'un PDF sera activé au ticket MOB-04 !")}
-            className="w-full bg-slate-800 hover:bg-slate-700 active:bg-slate-700/80 text-slate-200 font-medium py-3 px-4 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 border border-slate-700"
-          >
-            <FileUp size={18} />
-            <span>Choisir une photo ou un PDF</span>
-          </button>
-        </div>
-      </div>
+      {/* Zone de capture Photo (Mobile), sélection PDF/Image et Glisser-Déposer (PC) — MOB-04 */}
+      <ReceiptDropZone
+        selectedComptaName={selectedCompta?.comptaName}
+        preparedFile={preparedFile}
+        onFilePrepared={(prepared) => setPreparedFile(prepared)}
+        onClearFile={() => setPreparedFile(null)}
+        onContinue={(prepared) => {
+          alert(
+            `Document prêt (${prepared.normalizedName}) ! L'extraction automatique IA / PDF et l'écran de vérification s'ouvriront aux tickets MOB-05 / MOB-06.`
+          );
+        }}
+      />
 
       {/* Two Types of Expense info cards */}
       <div className="grid grid-cols-2 gap-3">
