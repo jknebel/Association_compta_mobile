@@ -67,7 +67,7 @@ export function isStandaloneMode(win?: WindowLike): boolean {
   }
 
   // 3. Android TWA / PWA shortcut referrer
-  if (currentWin.document?.referrer && currentWin.document.!referrer.includes('android-app://')) {
+  if (currentWin.document?.referrer && currentWin.document.referrer.includes('android-app://')) {
     return true;
   }
 

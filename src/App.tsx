@@ -8,7 +8,7 @@ import { ScanHomeScreen } from './screens/ScanHomeScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
 
 const MobileAppContent: React.FC = () => {
-  const { userProfile, loading, logout } = useAuth();
+  const { userProfile, selectedCompta, loading, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<MobileTab>('scan');
 
   if (loading) {
@@ -30,7 +30,7 @@ const MobileAppContent: React.FC = () => {
       <Header
         userName={userProfile.displayName}
         userEmail={userProfile.email}
-        orgName={userProfile.orgName}
+        orgName={selectedCompta?.orgName || userProfile.orgName}
         onLogout={() => {
           void logout();
         }}
