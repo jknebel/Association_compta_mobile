@@ -7,13 +7,16 @@ import {
   ShieldAlert,
   ChevronDown,
   Loader2,
+  CheckCircle2,
 } from 'lucide-react';
 import { InstallPwaBanner } from '../components/InstallPwaBanner';
 import { ReceiptDropZone } from '../components/ReceiptDropZone';
+import { ReceiptPreview } from '../components/ReceiptPreview';
 import { useAuth } from '../contexts/AuthContext';
 import { getComptaRoleLabel } from '../services/comptaHelpers';
 import type { PreparedReceiptFile } from '../services/imageService';
 import type { ReceiptExtractionResult } from '../services/receiptExtractionService';
+import type { VerifiedReceiptPayload } from '../services/verificationHelpers';
 
 export const ScanHomeScreen: React.FC = () => {
   const {
@@ -26,6 +29,8 @@ export const ScanHomeScreen: React.FC = () => {
   } = useAuth();
   const [preparedFile, setPreparedFile] = useState<PreparedReceiptFile | null>(null);
   const [extractionResult, setExtractionResult] = useState<ReceiptExtractionResult | null>(null);
+  const [isVerifying, setIsVerifying] = useState<boolean>(false);
+  const [lastVerifiedSummary, setLastVerifiedSummary] = useState<string | null>(null);
 
   if (comptasLoading && authorizedComptas.length === 0) {
     return (
@@ -77,10 +82,50 @@ export const ScanHomeScreen: React.FC = () => {
     );
   }
 
+  // Écran de vérification responsive (Mobile & PC 2 colonnes) — MOB-06
+  if (isVerifying && preparedFile) {
+    return (
+      <ReceiptPreview
+        preparedFile={preparedFile}
+        extractionResult={extractionResult}
+        authorizedComptas={authorizedComptas}
+        selectedCompta={selectedCompta}
+        onSelectCompta={selectCompta}
+        onBack={() => setIsVerifying(false)}
+        onSubmitVerified={(payload) => {
+          const targetCompta =
+            authorizedComptas.find((c) => c.comptaId === payload.comptaId) || selectedCompta;
+          const typeLabel =
+            payload.expenseType === 'REIMBURSEMENT' ? 'À rembourser' : 'Carte de débit';
+          setLastVerifiedSummary(
+            `Justificatif vérifié (${targetCompta?.currency || 'CHF'} ${payload.extractedAmount.toFixed(
+              2
+            )} du ${payload.extractedDate} — ${typeLabel}) prêt pour « ${
+              targetCompta?.comptaName || payload.comptaId
+            } ». L'envoi cloud et la file hors-ligne seront activés au ticket MOB-07.`
+          );
+          setIsVerifying(false);
+          setPreparedFile(null);
+          setExtractionResult(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4 p-4 pb-24 max-w-md mx-auto">
       {/* Top Banner slot MOB-09 */}
       <InstallPwaBanner />
+
+      {lastVerifiedSummary && (
+        <div
+          role="status"
+          className="bg-emerald-950/70 border border-emerald-500/40 rounded-2xl p-4 flex items-start gap-2.5 text-xs text-emerald-100 shadow-md"
+        >
+          <CheckCircle2 size={17} className="text-emerald-400 shrink-0 mt-0.5" />
+          <div className="flex-1 leading-relaxed">{lastVerifiedSummary}</div>
+        </div>
+      )}
 
       {/* Sélecteur de comptabilité active (MOB-03) */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-md">
@@ -142,29 +187,24 @@ export const ScanHomeScreen: React.FC = () => {
         )}
       </div>
 
-      {/* Zone de capture Photo (Mobile), sélection PDF/Image et Glisser-Déposer (PC) — MOB-04 & MOB-05 */}
+      {/* Zone de capture Photo (Mobile), sélection PDF/Image et Glisser-Déposer (PC) — MOB-04, MOB-05 & MOB-06 */}
       <ReceiptDropZone
         selectedComptaName={selectedCompta?.comptaName}
         currency={selectedCompta?.currency || 'CHF'}
         preparedFile={preparedFile}
         extractionResult={extractionResult}
         onFilePrepared={(prepared, extraction) => {
+          setLastVerifiedSummary(null);
           setPreparedFile(prepared);
           setExtractionResult(extraction);
         }}
         onClearFile={() => {
           setPreparedFile(null);
           setExtractionResult(null);
+          setIsVerifying(false);
         }}
-        onContinue={(prepared, extraction) => {
-          const amountInfo =
-            extraction?.extractedAmount != null
-              ? `${selectedCompta?.currency || 'CHF'} ${extraction.extractedAmount.toFixed(2)}`
-              : 'Montant à compléter';
-          const dateInfo = extraction?.extractedDate ?? 'Date à compléter';
-          alert(
-            `Document analysé (${prepared.normalizedName} — ${amountInfo} — ${dateInfo}) ! L'écran complet de validation s'ouvrira au ticket MOB-06.`
-          );
+        onContinue={() => {
+          setIsVerifying(true);
         }}
       />
 
