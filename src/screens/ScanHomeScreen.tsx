@@ -16,9 +16,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { getComptaRoleLabel } from '../services/comptaHelpers';
 import type { PreparedReceiptFile } from '../services/imageService';
 import type { ReceiptExtractionResult } from '../services/receiptExtractionService';
-import type { VerifiedReceiptPayload } from '../services/verificationHelpers';
+import { uploadVerifiedReceipt } from '../services/receiptUploadService';
 
-export const ScanHomeScreen: React.FC = () => {
+export const ScanHomeScreen: React.FC<{ onUploadCompleted?: () => void }> = ({
+  onUploadCompleted,
+}) => {
   const {
     userProfile,
     authorizedComptas,
@@ -30,6 +32,8 @@ export const ScanHomeScreen: React.FC = () => {
   const [preparedFile, setPreparedFile] = useState<PreparedReceiptFile | null>(null);
   const [extractionResult, setExtractionResult] = useState<ReceiptExtractionResult | null>(null);
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [lastVerifiedSummary, setLastVerifiedSummary] = useState<string | null>(null);
 
   if (comptasLoading && authorizedComptas.length === 0) {
@@ -82,7 +86,7 @@ export const ScanHomeScreen: React.FC = () => {
     );
   }
 
-  // Écran de vérification responsive (Mobile & PC 2 colonnes) — MOB-06
+  // Écran de vérification responsive (Mobile & PC 2 colonnes) & Envoi Firebase — MOB-06 & MOB-07
   if (isVerifying && preparedFile) {
     return (
       <ReceiptPreview
@@ -91,22 +95,41 @@ export const ScanHomeScreen: React.FC = () => {
         authorizedComptas={authorizedComptas}
         selectedCompta={selectedCompta}
         onSelectCompta={selectCompta}
-        onBack={() => setIsVerifying(false)}
-        onSubmitVerified={(payload) => {
+        onBack={() => {
+          setSubmitError(null);
+          setIsVerifying(false);
+        }}
+        isSubmitting={isSubmitting}
+        submitError={submitError}
+        onSubmitVerified={async (payload, file) => {
+          if (!userProfile) return;
           const targetCompta =
             authorizedComptas.find((c) => c.comptaId === payload.comptaId) || selectedCompta;
-          const typeLabel =
-            payload.expenseType === 'REIMBURSEMENT' ? 'À rembourser' : 'Carte de débit';
-          setLastVerifiedSummary(
-            `Justificatif vérifié (${targetCompta?.currency || 'CHF'} ${payload.extractedAmount.toFixed(
-              2
-            )} du ${payload.extractedDate} — ${typeLabel}) prêt pour « ${
-              targetCompta?.comptaName || payload.comptaId
-            } ». L'envoi cloud et la file hors-ligne seront activés au ticket MOB-07.`
-          );
-          setIsVerifying(false);
-          setPreparedFile(null);
-          setExtractionResult(null);
+          if (!targetCompta) return;
+
+          setIsSubmitting(true);
+          setSubmitError(null);
+          try {
+            const result = await uploadVerifiedReceipt({
+              preparedFile: file,
+              verifiedPayload: payload,
+              targetCompta,
+              userProfile,
+            });
+            setLastVerifiedSummary(result.message);
+            setIsVerifying(false);
+            setPreparedFile(null);
+            setExtractionResult(null);
+            onUploadCompleted?.();
+          } catch (err) {
+            setSubmitError(
+              err instanceof Error
+                ? err.message
+                : "Une erreur est survenue lors de l'envoi du justificatif."
+            );
+          } finally {
+            setIsSubmitting(false);
+          }
         }}
       />
     );
