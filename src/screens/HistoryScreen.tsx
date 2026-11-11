@@ -8,6 +8,7 @@ import {
   FolderKanban,
   Loader2,
   CloudUpload,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -20,6 +21,7 @@ import {
 import {
   fetchUserSubmittedReceipts,
   syncPendingOfflineReceipts,
+  deleteReceiptItem,
 } from '../services/receiptUploadService';
 
 const getStatusBadgeClasses = (statusKey: HistoryStatusKey): string => {
@@ -71,6 +73,22 @@ export const HistoryScreen: React.FC = () => {
   useEffect(() => {
     void loadHistory();
   }, [loadHistory]);
+
+  
+  const handleDeleteItem = async (item: UserReceiptHistoryItem) => {
+    const title = item.receipt.merchantName || item.receipt.fileName || 'ce justificatif';
+    const confirmDelete = window.confirm(
+      `Voulez-vous supprimer le justificatif « ${title} » ?`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await deleteReceiptItem(item);
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+    } catch (err) {
+      console.error('Erreur lors de la suppression :', err);
+    }
+  };
 
   const handleManualSync = async () => {
     setSyncing(true);
@@ -311,6 +329,16 @@ export const HistoryScreen: React.FC = () => {
                       >
                         <ExternalLink size={13} />
                       </a>
+
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteItem(item)}
+                        aria-label="Supprimer le justificatif"
+                        title="Supprimer ce justificatif"
+                        className="p-1 text-slate-400 hover:text-rose-400 active:text-rose-500 transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
                 </div>

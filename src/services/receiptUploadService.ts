@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, doc, getDocs, query, setDoc, where, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, isFirebaseConfigured } from '../config/firebase';
 import type { AuthorizedComptabilite, Receipt } from '../types/receipt';
@@ -394,6 +394,50 @@ export const syncPendingOfflineReceipts = async (): Promise<number> => {
  * Récupère l'historique complet des pièces justificatives envoyées par l'utilisateur connecté
  * dans ses comptabilités autorisées, fusionné avec les pièces locales / hors-ligne (Ticket MOB-08).
  */
+
+/**
+ * Supprime un justificatif à la fois du stockage local (localStorage) et de Firestore (si en ligne).
+ */
+export const deleteReceiptItem = async (
+  item: UserReceiptHistoryItem,
+  storageObj?: Storage | null
+): Promise<void> => {
+  const s =
+    storageObj !== undefined
+      ? storageObj
+      : typeof localStorage !== 'undefined'
+      ? localStorage
+      : null;
+
+  if (s) {
+    try {
+      const existing = getLocalSubmittedReceipts(s).filter((r) => r.receipt.id !== item.id);
+      s.setItem(LOCAL_SUBMITTED_RECEIPTS_KEY, JSON.stringify(existing));
+    } catch {
+      // ignore
+    }
+  }
+
+  removeOfflineReceiptFromQueue(item.id);
+
+  if (isFirebaseConfigured && db && item.orgId && item.comptaId && item.id) {
+    try {
+      const receiptRef = doc(
+        db,
+        'organizations',
+        item.orgId,
+        'comptabilites',
+        item.comptaId,
+        'receipts',
+        item.id
+      );
+      await deleteDoc(receiptRef);
+    } catch (err) {
+      console.warn('Erreur lors de la suppression Firestore du justificatif :', err);
+    }
+  }
+};
+
 export const fetchUserSubmittedReceipts = async (
   uid: string,
   email: string,
@@ -447,10 +491,13 @@ export const fetchUserSubmittedReceipts = async (
           compta.comptaId,
           'receipts'
         );
-        const q = query(receiptsRef, where('submittedByUid', '==', cleanUid));
-        const snap = await getDocs(q);
+        const seenDocIds = new Set<string>();
 
-        snap.docs.forEach((docSnap) => {
+        const qUid = query(receiptsRef, where('submittedByUid', '==', cleanUid));
+        const snapUid = await getDocs(qUid);
+
+        snapUid.docs.forEach((docSnap) => {
+          seenDocIds.add(docSnap.id);
           const data = docSnap.data() as Receipt;
           firestoreRecords.push({
             orgId: compta.orgId,
@@ -465,6 +512,33 @@ export const fetchUserSubmittedReceipts = async (
             },
           });
         });
+
+        if (cleanEmail) {
+          try {
+            const qEmail = query(receiptsRef, where('submittedByEmail', '==', cleanEmail));
+            const snapEmail = await getDocs(qEmail);
+            snapEmail.docs.forEach((docSnap) => {
+              if (!seenDocIds.has(docSnap.id)) {
+                seenDocIds.add(docSnap.id);
+                const data = docSnap.data() as Receipt;
+                firestoreRecords.push({
+                  orgId: compta.orgId,
+                  orgName: compta.orgName,
+                  comptaId: compta.comptaId,
+                  comptaName: compta.comptaName,
+                  currency: compta.currency,
+                  syncState: 'synced',
+                  receipt: {
+                    ...data,
+                    id: data.id || docSnap.id,
+                  },
+                });
+              }
+            });
+          } catch {
+            // ignore
+          }
+        }
       } catch (err) {
         console.warn(
           `Impossible de récupérer les justificatifs de ${compta.comptaName} :`,
@@ -474,5 +548,53 @@ export const fetchUserSubmittedReceipts = async (
     })
   );
 
-  return mergeAndSortUserReceipts(firestoreRecords, localRecords, cleanUid, cleanEmail);
+  // Synchronisation : si des pièces enregistrées localement comme 'synced' ne sont plus sur Firestore,
+  // cela signifie qu'elles ont été supprimées par l'administrateur / caissier. On les purge du localStorage.
+  const firestoreReceiptIds = new Set(firestoreRecords.map((r) => r.receipt.id));
+  const checkedComptaIds = new Set(authorizedComptas.map((c) => c.comptaId));
+
+  const cleanedLocalHistory = localHistory.filter((rec) => {
+    if (offlineIds.has(rec.receipt.id)) return true;
+    if (
+      rec.syncState === 'synced' &&
+      checkedComptaIds.has(rec.comptaId) &&
+      !firestoreReceiptIds.has(rec.receipt.id)
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  if (typeof localStorage !== 'undefined' && cleanedLocalHistory.length !== localHistory.length) {
+    try {
+      localStorage.setItem(LOCAL_SUBMITTED_RECEIPTS_KEY, JSON.stringify(cleanedLocalHistory));
+    } catch {
+      // ignore
+    }
+  }
+
+  const prunedLocalRecords: RawReceiptWithContext[] = [
+    ...offlineQueue.map((q) => ({
+      orgId: q.orgId,
+      orgName: q.orgName,
+      comptaId: q.comptaId,
+      comptaName: q.comptaName,
+      currency: q.currency,
+      syncState: 'pending_offline' as const,
+      receipt: q.receiptDoc,
+    })),
+    ...cleanedLocalHistory
+      .filter((r) => !offlineIds.has(r.receipt.id))
+      .map((r) => ({
+        orgId: r.orgId,
+        orgName: r.orgName,
+        comptaId: r.comptaId,
+        comptaName: r.comptaName,
+        currency: r.currency,
+        syncState: r.syncState,
+        receipt: r.receipt,
+      })),
+  ];
+
+  return mergeAndSortUserReceipts(firestoreRecords, prunedLocalRecords, cleanUid, cleanEmail);
 };

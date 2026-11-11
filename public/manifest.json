@@ -1,7 +1,7 @@
 {
-  "name": "AssoCompta Scan",
+  "name": "AssoCompta Scan - TDGL",
   "short_name": "AssoCompta",
-  "description": "Scan de pièces justificatives et demandes de remboursement pour AssoCompta AI",
+  "description": "Dépôt de justificatifs et demandes de remboursement — TDGL Morges",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -12,13 +12,25 @@
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

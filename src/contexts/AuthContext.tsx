@@ -2,11 +2,13 @@ import React, { createContext, useContext, useState, useEffect, useCallback, typ
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
   sendPasswordResetEmail,
   signOut,
   type User,
 } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from '../config/firebase';
 import { type AuthorizedComptabilite } from '../types/receipt';
 import {
@@ -16,6 +18,7 @@ import {
   validateLoginCredentials,
   validatePasswordResetEmail,
   translateFirebaseAuthError,
+  canUserAccessRentals,
 } from '../services/authHelpers';
 import {
   getUserAuthorizedComptabilites,
@@ -36,11 +39,13 @@ interface AuthContextValue {
   error: string | null;
   isConfigured: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   selectCompta: (comptaId: string) => void;
   refreshComptas: () => Promise<void>;
   clearError: () => void;
+  canAccessRentals: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -53,11 +58,13 @@ const AuthContext = createContext<AuthContextValue>({
   error: null,
   isConfigured: isFirebaseConfigured,
   login: async () => {},
+  loginWithGoogle: async () => {},
   sendPasswordReset: async () => {},
   logout: async () => {},
   selectCompta: () => {},
   refreshComptas: async () => {},
   clearError: () => {},
+  canAccessRentals: false,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -295,6 +302,56 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+
+  const loginWithGoogle = async (): Promise<void> => {
+    setError(null);
+    if (!isFirebaseConfigured || !auth) {
+      const fallbackProfile = buildMobileUserProfile(
+        {
+          uid: 'local-google-user',
+          email: 'google-user@demo.ch',
+          displayName: 'Utilisateur Google Démo',
+          emailVerified: true,
+        },
+        { orgId: 'TDGL', orgName: 'Troupe du Grand Lac' }
+      );
+      localStorage.setItem(LOCAL_SESSION_STORAGE_KEY, JSON.stringify(fallbackProfile));
+      setUserProfile(fallbackProfile);
+      return;
+    }
+
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      if (db && result.user) {
+        try {
+          const userRef = doc(db, 'users', result.user.uid);
+          const snap = await getDoc(userRef);
+          if (!snap.exists()) {
+            const names = (result.user.displayName || '').split(' ');
+            await setDoc(userRef, {
+              firstName: names[0] || '',
+              lastName: names.slice(1).join(' ') || '',
+              email: result.user.email || '',
+              displayName: result.user.displayName || '',
+              orgId: 'TDGL',
+              orgName: 'Troupe du Grand Lac',
+              emailVerified: true,
+              emailVerificationRequired: false,
+              createdAt: Date.now(),
+            });
+          }
+        } catch (profileErr) {
+          console.warn('Création du profil utilisateur Google Firestore :', profileErr);
+        }
+      }
+    } catch (err) {
+      const msg = translateFirebaseAuthError(err);
+      setError(msg);
+      throw new Error(msg);
+    }
+  };
+
   const logout = async (): Promise<void> => {
     setError(null);
     localStorage.removeItem(LOCAL_SESSION_STORAGE_KEY);
@@ -319,11 +376,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         error,
         isConfigured: isFirebaseConfigured,
         login,
+        loginWithGoogle,
         sendPasswordReset,
         logout,
         selectCompta,
         refreshComptas,
         clearError,
+        canAccessRentals:
+          canUserAccessRentals(userProfile, user?.email) ||
+          authorizedComptas.some(
+            (c) =>
+              c.role === 'responsable_location' ||
+              (c.comptaName.toLowerCase().includes('groupe') && c.role === 'caissier')
+          ),
       }}
     >
       {children}

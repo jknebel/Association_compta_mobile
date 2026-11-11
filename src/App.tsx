@@ -6,15 +6,18 @@ import { BottomNavigation, type MobileTab } from './components/BottomNavigation'
 import { LoginScreen } from './screens/LoginScreen';
 import { ScanHomeScreen } from './screens/ScanHomeScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
+import { RentalsScreen } from './screens/RentalsScreen';
 import {
   getOfflineReceiptQueue,
   syncPendingOfflineReceipts,
 } from './services/receiptUploadService';
+import { subscribeRentals } from './services/rentalService';
 
 const MobileAppContent: React.FC = () => {
-  const { userProfile, selectedCompta, loading, logout } = useAuth();
+  const { userProfile, authorizedComptas, selectedCompta, loading, logout, canAccessRentals } = useAuth();
   const [activeTab, setActiveTab] = useState<MobileTab>('scan');
   const [pendingCount, setPendingCount] = useState<number>(() => getOfflineReceiptQueue().length);
+  const [pendingRentalsCount, setPendingRentalsCount] = useState<number>(0);
 
   const refreshQueueAndSync = useCallback(async () => {
     setPendingCount(getOfflineReceiptQueue().length);
@@ -34,6 +37,31 @@ const MobileAppContent: React.FC = () => {
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
   }, [refreshQueueAndSync]);
+
+  // Écoute des locations de la comptabilité de Groupe pour le badge des locations en attente
+  useEffect(() => {
+    if (!canAccessRentals) {
+      setPendingRentalsCount(0);
+      return;
+    }
+
+    const groupeCompta =
+      authorizedComptas.find((c) => c.role === 'responsable_location') ||
+      authorizedComptas.find((c) => c.comptaName.toLowerCase().includes('groupe')) ||
+      selectedCompta ||
+      authorizedComptas[0] ||
+      null;
+
+    const orgId = groupeCompta?.orgId || userProfile?.orgId || 'TDGL';
+    const comptaId = groupeCompta?.comptaId || 'default';
+
+    const unsubscribe = subscribeRentals(orgId, comptaId, (list) => {
+      const pending = list.filter((r) => r.status === 'PENDING').length;
+      setPendingRentalsCount(pending);
+    });
+
+    return () => unsubscribe();
+  }, [canAccessRentals, authorizedComptas, selectedCompta, userProfile]);
 
   if (loading) {
     return (
@@ -62,11 +90,11 @@ const MobileAppContent: React.FC = () => {
 
       {/* Contenu principal selon l'onglet actif */}
       <main className="flex-1 w-full mx-auto">
-        {activeTab === 'scan' ? (
+        {activeTab === 'scan' && (
           <ScanHomeScreen onUploadCompleted={() => void refreshQueueAndSync()} />
-        ) : (
-          <HistoryScreen />
         )}
+        {activeTab === 'history' && <HistoryScreen />}
+        {activeTab === 'rentals' && <RentalsScreen />}
       </main>
 
       {/* Barre de navigation basse fixe (Bottom Tabs) */}
@@ -74,6 +102,8 @@ const MobileAppContent: React.FC = () => {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         pendingCount={pendingCount}
+        canAccessRentals={canAccessRentals}
+        pendingRentalsCount={pendingRentalsCount}
       />
     </div>
   );

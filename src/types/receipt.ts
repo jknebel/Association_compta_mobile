@@ -2,6 +2,7 @@ export enum OrgRole {
   ADMIN = 'admin',
   CAISSIER = 'caissier',
   COMPTABLE = 'comptable',
+  RESPONSABLE_LOCATION = 'responsable_location',
   MEMBER = 'member',
 }
 
@@ -11,6 +12,7 @@ export enum ComptaRole {
   VERIFICATEUR = 'verificateur',
   VIEWER = 'viewer',
   UPLOADER = 'uploader', // Rôle minimal : envoi de pièces justificatives uniquement (Ticket WEB-01 / MOB-03)
+  RESPONSABLE_LOCATION = 'responsable_location', // Responsable des locations de locaux (Compta de Groupe)
 }
 
 export type ExpenseType = 'DEBIT_CARD' | 'REIMBURSEMENT';

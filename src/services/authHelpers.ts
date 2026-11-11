@@ -8,6 +8,10 @@ export interface MobileUserProfile {
   orgName: string;
   emailVerified: boolean;
   emailVerificationRequired: boolean;
+  role?: string;
+  roles?: string[];
+  isRentalManager?: boolean;
+  isAdmin?: boolean;
 }
 
 export const EXEMPT_VERIFICATION_EMAILS: readonly string[] = [
@@ -188,6 +192,29 @@ export const buildMobileUserProfile = (
     isExemptFromEmailVerification(email) ||
     !emailVerificationRequired;
 
+  const rawRole = typeof firestoreData?.role === 'string' ? firestoreData.role.trim().toLowerCase() : '';
+  const rawRoles = Array.isArray(firestoreData?.roles)
+    ? (firestoreData.roles as unknown[]).filter((r): r is string => typeof r === 'string').map(r => r.trim().toLowerCase())
+    : [];
+
+  let orgAdmin = rawRole === 'admin' || rawRoles.includes('admin') || isExemptFromEmailVerification(email);
+  if (!orgAdmin && firestoreData?.organizations && typeof firestoreData.organizations === 'object') {
+    for (const orgVal of Object.values(firestoreData.organizations as Record<string, unknown>)) {
+      if (orgVal && typeof orgVal === 'object' && 'role' in orgVal && (orgVal as { role: unknown }).role === 'admin') {
+        orgAdmin = true;
+        break;
+      }
+    }
+  }
+
+  const isRentalManager =
+    firestoreData?.isRentalManager === true ||
+    rawRole === 'responsable_location' ||
+    rawRole === 'rental_manager' ||
+    rawRoles.includes('responsable_location') ||
+    rawRoles.includes('rental_manager') ||
+    orgAdmin;
+
   return {
     uid: authUser.uid,
     email,
@@ -198,5 +225,28 @@ export const buildMobileUserProfile = (
     orgName,
     emailVerified,
     emailVerificationRequired,
+    ...(rawRole ? { role: rawRole } : {}),
+    ...(rawRoles.length > 0 ? { roles: rawRoles } : {}),
+    ...(isRentalManager ? { isRentalManager: true } : {}),
+    ...(orgAdmin ? { isAdmin: true } : {}),
   };
+};
+
+/**
+ * Détermine si l'utilisateur a accès au module "Locations".
+ * Accessible aux administrateurs (ex. test immédiat avec le compte admin)
+ * et aux personnes ayant le titre / rôle de responsable location.
+ */
+export const canUserAccessRentals = (
+  profile: MobileUserProfile | null,
+  email?: string | null
+): boolean => {
+  if (!profile && !email) return false;
+  const normalized = normalizeEmail(profile?.email || email);
+  if (isExemptFromEmailVerification(normalized)) return true;
+  if (profile?.isAdmin === true) return true;
+  if (profile?.isRentalManager === true) return true;
+  if (profile?.role === 'admin' || profile?.role === 'responsable_location') return true;
+  if (profile?.roles?.some(r => r === 'admin' || r === 'responsable_location')) return true;
+  return false;
 };

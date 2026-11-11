@@ -1,0 +1,13 @@
+{
+  "projects": {},
+  "targets": {
+    "compta-ai": {
+      "hosting": {
+        "mobile": [
+          "justificatifs-tdgl"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

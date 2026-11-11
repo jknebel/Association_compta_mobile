@@ -1,22 +1,28 @@
 import React from 'react';
-import { Camera, Clock } from 'lucide-react';
+import { Camera, Clock, Building2 } from 'lucide-react';
 
-export type MobileTab = 'scan' | 'history';
+export type MobileTab = 'scan' | 'history' | 'rentals';
 
 interface BottomNavigationProps {
   activeTab: MobileTab;
   onTabChange: (tab: MobileTab) => void;
   pendingCount?: number;
+  canAccessRentals?: boolean;
+  pendingRentalsCount?: number;
 }
 
 export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   activeTab,
   onTabChange,
-  pendingCount = 0
+  pendingCount = 0,
+  canAccessRentals = false,
+  pendingRentalsCount = 0,
 }) => {
+  const colClass = canAccessRentals ? 'grid-cols-3' : 'grid-cols-2';
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 pb-safe">
-      <div className="max-w-md mx-auto grid grid-cols-2 h-16">
+      <div className={`max-w-md mx-auto grid ${colClass} h-16`}>
         {/* Tab 1: Scanner un justificatif */}
         <button
           type="button"
@@ -36,7 +42,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
           >
             <Camera size={20} />
           </div>
-          <span className="text-[11px] leading-tight">Nouveau justificatif</span>
+          <span className="text-[11px] leading-tight">Justificatif</span>
           {activeTab === 'scan' && (
             <span className="absolute bottom-1 w-8 h-0.5 bg-blue-500 rounded-full" />
           )}
@@ -71,6 +77,38 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             <span className="absolute bottom-1 w-8 h-0.5 bg-emerald-500 rounded-full" />
           )}
         </button>
+
+        {/* Tab 3: Locations de locaux (pour responsable des locations & admins) */}
+        {canAccessRentals && (
+          <button
+            type="button"
+            onClick={() => onTabChange('rentals')}
+            className={`flex flex-col items-center justify-center gap-1 transition-colors relative ${
+              activeTab === 'rentals'
+                ? 'text-indigo-400 font-semibold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div
+              className={`p-1.5 rounded-full transition-all relative ${
+                activeTab === 'rentals'
+                  ? 'bg-indigo-600/20 text-indigo-400 scale-110'
+                  : 'text-slate-400'
+              }`}
+            >
+              <Building2 size={20} />
+              {pendingRentalsCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-slate-950 font-bold text-[9px] rounded-full flex items-center justify-center">
+                  {pendingRentalsCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] leading-tight">Locations</span>
+            {activeTab === 'rentals' && (
+              <span className="absolute bottom-1 w-8 h-0.5 bg-indigo-500 rounded-full" />
+            )}
+          </button>
+        )}
       </div>
     </nav>
   );

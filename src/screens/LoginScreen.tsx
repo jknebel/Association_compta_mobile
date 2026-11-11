@@ -1,16 +1,34 @@
 import React, { useState } from 'react';
-import { Mail, Lock, ArrowRight, Sparkles, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Sparkles, AlertCircle, CheckCircle2, Loader2, Chrome, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { InstallPwaBanner } from '../components/InstallPwaBanner';
 
 export const LoginScreen: React.FC = () => {
-  const { login, sendPasswordReset, error: authError, clearError } = useAuth();
+  const { login, loginWithGoogle, sendPasswordReset, error: authError, clearError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [resetSentMessage, setResetSentMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleLogin = async () => {
+    setLocalError(null);
+    setResetSentMessage(null);
+    clearError();
+    setGoogleLoading(true);
+    try {
+      await loginWithGoogle();
+    } catch (err) {
+      if (err instanceof Error && err.message) {
+        setLocalError(err.message);
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const displayedError = localError || authError;
 
@@ -56,7 +74,7 @@ export const LoginScreen: React.FC = () => {
     <div className="min-h-screen bg-slate-950 flex flex-col justify-between p-4 sm:p-6 text-slate-100 pt-safe pb-safe">
       {/* Top Banner slot (MOB-09 Bouton d'installation PWA) */}
       <div id="pwa-install-banner-slot" className="w-full max-w-sm mx-auto mb-4">
-        <InstallPwaBanner />
+        <InstallPwaBanner forceShow={true} />
       </div>
 
       {/* Main Login Card */}
@@ -175,6 +193,43 @@ export const LoginScreen: React.FC = () => {
                 <>
                   <span>Se connecter</span>
                   <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          
+            <div className="mt-4 text-center">
+              <a
+                href="https://compta-ai-v2.web.app/?org=TDGL"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors inline-flex items-center gap-1.5 font-medium"
+              >
+                <span>Pas de compte ? Inscrivez-vous</span>
+                <ExternalLink size={12} className="opacity-70" />
+              </a>
+            </div>
+
+            <div className="my-5 flex items-center gap-4">
+              <div className="h-px bg-slate-800 flex-1" />
+              <span className="text-xs text-slate-500 font-medium">OU</span>
+              <div className="h-px bg-slate-800 flex-1" />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading || resetLoading || googleLoading}
+              className="w-full bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-900 font-semibold py-3 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2.5 shadow-md disabled:opacity-50"
+            >
+              {googleLoading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin text-slate-700" />
+                  <span>Connexion en cours…</span>
+                </>
+              ) : (
+                <>
+                  <Chrome size={18} className="text-blue-600 shrink-0" />
+                  <span>Continuer avec Google</span>
                 </>
               )}
             </button>

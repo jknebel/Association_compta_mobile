@@ -76,6 +76,10 @@ export const normalizeComptaRole = (rawRole?: unknown): ComptaRole | null => {
       return 'viewer' as ComptaRole;
     case 'uploader':
       return 'uploader' as ComptaRole;
+    case 'responsable_location':
+    case 'location':
+    case 'locations':
+      return 'responsable_location' as ComptaRole;
     default:
       return null;
   }
@@ -97,6 +101,8 @@ export const getComptaRoleLabel = (role?: ComptaRole | string | null): string =>
       return 'Lecteur';
     case 'uploader':
       return 'Déposant de factures';
+    case 'responsable_location':
+      return 'Responsable Locations';
     default:
       return 'Aucun accès';
   }
@@ -178,11 +184,19 @@ export const resolveAuthorizedComptabilites = (
 
     const isOrgAdmin = isOrganizationAdmin(org, members || [], cleanUid, normalizedUserEmail);
 
+    // Vérifier si l'utilisateur a le rôle global "responsable_location" au niveau du Groupe
+    let isOrgRentalManager = false;
+
     // Collecter les accès explicites depuis organizations/{orgId}/members
     const explicitRolesByComptaId = new Map<string, ComptaRole>();
     for (const memberDoc of members || []) {
       if (memberDoc.status === 'rejected') continue;
       if (!doesMemberMatchUser(memberDoc, cleanUid, normalizedUserEmail)) continue;
+
+      const orgRoleNorm = typeof memberDoc.role === 'string' ? memberDoc.role.trim().toLowerCase() : '';
+      if (orgRoleNorm === 'responsable_location' || orgRoleNorm === 'location' || orgRoleNorm === 'locations') {
+        isOrgRentalManager = true;
+      }
 
       if (memberDoc.comptaAccess && typeof memberDoc.comptaAccess === 'object') {
         for (const [comptaId, rawRole] of Object.entries(memberDoc.comptaAccess)) {
@@ -220,6 +234,12 @@ export const resolveAuthorizedComptabilites = (
       // Si l'utilisateur est admin de l'organisation, il a accès à toutes les comptas actives
       if (!resolvedRole && isOrgAdmin) {
         resolvedRole = 'caissier' as ComptaRole;
+      }
+
+      // Si l'utilisateur a le rôle Responsable Locations au niveau Groupe, lui ouvrir la compta de Groupe
+      const cNameNorm = typeof compta.name === 'string' ? compta.name.toLowerCase() : '';
+      if (!resolvedRole && isOrgRentalManager && cNameNorm.includes('groupe')) {
+        resolvedRole = 'responsable_location' as ComptaRole;
       }
 
       if (!resolvedRole) continue;
