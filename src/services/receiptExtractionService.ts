@@ -1,3 +1,4 @@
+import { auth } from '../config/firebase';
 import { detectReceiptFileKind } from './imageHelpers';
 import {
   EXTRACTION_TIMEOUT_MS,
