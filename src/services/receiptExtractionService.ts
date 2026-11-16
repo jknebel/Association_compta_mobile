@@ -1,4 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
 import { detectReceiptFileKind } from './imageHelpers';
 import {
   EXTRACTION_TIMEOUT_MS,
@@ -29,18 +28,7 @@ export {
   type ReceiptExtractionResult,
 };
 
-const GEMINI_RECEIPT_PROMPT = `Tu es un assistant comptable suisse spécialisé dans l'analyse de tickets de caisse et de factures PDF.
-Analyse ce justificatif et extrais :
-1. "extractedDate" : la date de la facture ou du ticket au format strict "YYYY-MM-DD" (ou null si illisible).
-2. "extractedAmount" : le montant TOTAL TTC payé (nombre décimal positif, ex: 42.50, ou null si illisible).
-3. "merchantName" : le nom du magasin, commerce ou fournisseur (ex: "Migros", "Coop", "CFF", "Swisscom", ou null si illisible).
-
-Réponds UNIQUEMENT avec un objet JSON valide, sans texte additionnel :
-{
-  "extractedDate": "YYYY-MM-DD",
-  "extractedAmount": 0.00,
-  "merchantName": "Nom du fournisseur"
-}`;
+const DEFAULT_BACKEND_API_URL = 'https://assocompta-backend-vkiznjrvtq-ew.a.run.app';
 
 /**
  * Convertit un `Blob` / `File` en chaîne Base64 (sans le préfixe `data:...;base64,`).
@@ -59,23 +47,25 @@ const fileToBase64 = (file: Blob): Promise<string> => {
 };
 
 /**
- * Récupère la clé API Gemini configurée dans l'environnement Vite (si présente).
+ * Récupère l'URL du backend AssoCompta configurée dans Vite, avec fallback sur l'URL de production.
  */
-const getGeminiApiKey = (): string => {
+const getBackendApiUrl = (): string => {
   try {
     const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
-    return (env?.VITE_GEMINI_API_KEY || '').trim();
+    const configured = (env?.VITE_API_URL || '').trim();
+    return (configured || DEFAULT_BACKEND_API_URL).replace(/\/+$/, '');
   } catch {
-    return '';
+    return DEFAULT_BACKEND_API_URL;
   }
 };
 
 /**
- * Appelle Gemini Vision (`gemini-2.5-flash`) sur une photo de ticket ou un PDF scanné.
+ * Appelle le backend sécurisé (`POST /analyze-receipt`) pour analyser une photo de ticket ou un PDF scanné.
+ * Aucune clé API Gemini n'est stockée ni exposée côté client.
  */
-const analyzeWithGeminiVision = async (
+const analyzeWithBackendVision = async (
   file: File,
-  apiKey: string
+  backendUrl: string
 ): Promise<{
   extractedDate: string | null;
   extractedAmount: number | null;
@@ -85,28 +75,27 @@ const analyzeWithGeminiVision = async (
   const mimeType =
     file.type || (detectReceiptFileKind(file.type, file.name) === 'pdf' ? 'application/pdf' : 'image/jpeg');
 
-  const ai = new GoogleGenAI({ apiKey });
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          {
-            inlineData: {
-              mimeType,
-              data: base64Data,
-            },
-          },
-          {
-            text: GEMINI_RECEIPT_PROMPT,
-          },
-        ],
-      },
-    ],
+  const response = await fetch(`${backendUrl}/analyze-receipt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base64Data, mimeType }),
   });
 
-  return parseGeminiJsonOutput(response.text);
+  if (!response.ok) {
+    throw new Error(`Erreur backend (${response.status})`);
+  }
+
+  const data = (await response.json()) as {
+    date?: string | null;
+    amount?: number | string | null;
+    merchantName?: string | null;
+  };
+
+  return {
+    extractedDate: normalizeExtractedDate(data.date),
+    extractedAmount: normalizeExtractedAmount(data.amount),
+    merchantName: normalizeMerchantName(data.merchantName),
+  };
 };
 
 /**
@@ -124,15 +113,15 @@ const computeConfidence = (
 /**
  * Service principal d'extraction automatique (Ticket MOB-05) :
  * 1. Si PDF : tente l'extraction directe du texte natif vectoriel (instantané, < 100ms).
- * 2. Si Photo ou PDF scanné (sans couche texte suffisante) : appelle Gemini Vision avec timeout de 8s.
+ * 2. Si Photo ou PDF scanné (sans couche texte suffisante) : appelle le backend sécurisé (`/analyze-receipt`) avec timeout de 8s.
  * 3. Résilience : ne bloque jamais l'utilisateur en cas de timeout, d'absence de réseau ou de ticket manuscrit.
  */
 export const extractReceiptData = async (
   file: File,
-  options?: { timeoutMs?: number; geminiApiKey?: string }
+  options?: { timeoutMs?: number; backendUrl?: string }
 ): Promise<ReceiptExtractionResult> => {
   const timeoutMs = options?.timeoutMs ?? EXTRACTION_TIMEOUT_MS;
-  const apiKey = options?.geminiApiKey !== undefined ? options.geminiApiKey : getGeminiApiKey();
+  const backendUrl = options?.backendUrl !== undefined ? options.backendUrl : getBackendApiUrl();
   const kind = detectReceiptFileKind(file?.type, file?.name);
 
   let partialPdfResult = null as {
@@ -169,9 +158,9 @@ export const extractReceiptData = async (
           }
         }
 
-        // 2. Branche IA Multimodale (Photo de ticket ou PDF scanné / incomplet)
-        if (apiKey) {
-          const visionResult = await analyzeWithGeminiVision(file, apiKey);
+        // 2. Branche IA Multimodale via Backend sécurisé (Photo de ticket ou PDF scanné / incomplet)
+        if (backendUrl) {
+          const visionResult = await analyzeWithBackendVision(file, backendUrl);
           const mergedDate = visionResult.extractedDate ?? partialPdfResult?.extractedDate ?? null;
           const mergedAmount =
             visionResult.extractedAmount ?? partialPdfResult?.extractedAmount ?? null;
@@ -190,7 +179,7 @@ export const extractReceiptData = async (
           };
         }
 
-        // 3. Si pas de clé API Gemini configurée mais qu'un résultat partiel PDF existe
+        // 3. Si pas de backend configuré mais qu'un résultat partiel PDF existe
         if (
           partialPdfResult &&
           (partialPdfResult.extractedDate ||
