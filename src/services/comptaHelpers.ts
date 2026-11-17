@@ -39,6 +39,7 @@ export interface RawComptaDoc {
   name?: string | null;
   currency?: string | null;
   isArchived?: boolean | null;
+  isSuspended?: boolean | null;
   fiscalYearStart?: string | null;
   fiscalYearEnd?: string | null;
   fiscalPeriod?: string | null;
@@ -294,8 +295,8 @@ export const resolveAuthorizedComptabilites = (
 
     for (const compta of comptabilites || []) {
       if (!compta || !compta.id) continue;
-      // Exclure impérativement les comptabilités archivées (Exigence MOB-03 tâche 3)
-      if (compta.isArchived === true) continue;
+      // Exclure impérativement les comptabilités archivées ou suspendues (Exigence MOB-03 tâche 3)
+      if (compta.isArchived === true || compta.isSuspended === true) continue;
 
       const uniqueKey = `${org.id}::${compta.id}`;
       if (seenKeys.has(uniqueKey)) continue;
