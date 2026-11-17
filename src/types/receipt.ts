@@ -60,6 +60,10 @@ export interface AuthorizedComptabilite {
   orgName: string;
   comptaId: string;
   comptaName: string;
+  baseName?: string;
+  fiscalYearStart?: string;
+  fiscalYearEnd?: string;
+  fiscalPeriod?: string;
   currency: string;
   role: ComptaRole;
 }

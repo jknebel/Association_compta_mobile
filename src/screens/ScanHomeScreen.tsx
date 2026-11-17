@@ -13,7 +13,12 @@ import { InstallPwaBanner } from '../components/InstallPwaBanner';
 import { ReceiptDropZone } from '../components/ReceiptDropZone';
 import { ReceiptPreview } from '../components/ReceiptPreview';
 import { useAuth } from '../contexts/AuthContext';
-import { getComptaRoleLabel } from '../services/comptaHelpers';
+import {
+  getComptaRoleLabel,
+  groupAuthorizedComptas,
+  resolveTargetComptaByDate,
+  stripPeriodFromComptaName,
+} from '../services/comptaHelpers';
 import type { PreparedReceiptFile } from '../services/imageService';
 import type { ReceiptExtractionResult } from '../services/receiptExtractionService';
 import { uploadVerifiedReceipt } from '../services/receiptUploadService';
@@ -103,9 +108,14 @@ export const ScanHomeScreen: React.FC<{ onUploadCompleted?: () => void }> = ({
         submitError={submitError}
         onSubmitVerified={async (payload, file) => {
           if (!userProfile) return;
-          const targetCompta =
+          const baseSelection =
             authorizedComptas.find((c) => c.comptaId === payload.comptaId) || selectedCompta;
-          if (!targetCompta) return;
+          if (!baseSelection) return;
+          const targetCompta = resolveTargetComptaByDate(
+            authorizedComptas,
+            baseSelection,
+            payload.extractedDate
+          );
 
           setIsSubmitting(true);
           setSubmitError(null);
@@ -177,37 +187,49 @@ export const ScanHomeScreen: React.FC<{ onUploadCompleted?: () => void }> = ({
           </div>
         </div>
 
-        {authorizedComptas.length === 1 && selectedCompta ? (
-          <div className="flex items-center justify-between bg-slate-950/70 border border-slate-800/80 rounded-xl px-3.5 py-2.5">
-            <div>
-              <div className="text-sm font-bold text-slate-100">
-                {selectedCompta.comptaName}
-              </div>
-              <div className="text-[11px] text-slate-400">
-                {selectedCompta.orgName} • Devise {selectedCompta.currency}
+        {(() => {
+          const groupedComptas = groupAuthorizedComptas(authorizedComptas);
+          const selectedGroup = selectedCompta
+            ? groupedComptas.find(
+                (g) =>
+                  g.orgId === selectedCompta.orgId &&
+                  (g.baseName || stripPeriodFromComptaName(g.comptaName)).toLowerCase() ===
+                    (selectedCompta.baseName || stripPeriodFromComptaName(selectedCompta.comptaName)).toLowerCase()
+              ) || groupedComptas[0]
+            : groupedComptas[0];
+
+          return groupedComptas.length === 1 && selectedGroup ? (
+            <div className="flex items-center justify-between bg-slate-950/70 border border-slate-800/80 rounded-xl px-3.5 py-2.5">
+              <div>
+                <div className="text-sm font-bold text-slate-100">
+                  {selectedGroup.baseName || stripPeriodFromComptaName(selectedGroup.comptaName)}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {selectedGroup.orgName} • Devise {selectedGroup.currency}
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="relative">
-            <select
-              aria-label="Sélectionner la comptabilité cible"
-              value={selectedCompta?.comptaId || ''}
-              onChange={(e) => selectCompta(e.target.value)}
-              className="w-full appearance-none bg-slate-950 border border-slate-700 hover:border-blue-500/60 focus:border-blue-500 focus:outline-none rounded-xl px-3.5 py-2.5 pr-9 text-sm font-semibold text-slate-100 transition-colors"
-            >
-              {authorizedComptas.map((compta) => (
-                <option key={`${compta.orgId}-${compta.comptaId}`} value={compta.comptaId}>
-                  {compta.comptaName} ({compta.orgName} — {compta.currency})
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              size={16}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-          </div>
-        )}
+          ) : (
+            <div className="relative">
+              <select
+                aria-label="Sélectionner la comptabilité cible"
+                value={selectedGroup?.comptaId || ''}
+                onChange={(e) => selectCompta(e.target.value)}
+                className="w-full appearance-none bg-slate-950 border border-slate-700 hover:border-blue-500/60 focus:border-blue-500 focus:outline-none rounded-xl px-3.5 py-2.5 pr-9 text-sm font-semibold text-slate-100 transition-colors"
+              >
+                {groupedComptas.map((compta) => (
+                  <option key={`${compta.orgId}-${compta.comptaId}`} value={compta.comptaId}>
+                    {compta.baseName || stripPeriodFromComptaName(compta.comptaName)} ({compta.orgName} — {compta.currency})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={16}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+            </div>
+          );
+        })()}
       </div>
 
       {/* Zone de capture Photo (Mobile), sélection PDF/Image et Glisser-Déposer (PC) — MOB-04, MOB-05 & MOB-06 */}

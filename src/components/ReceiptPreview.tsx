@@ -23,7 +23,12 @@ import {
   Loader2,
 } from 'lucide-react';
 import type { AuthorizedComptabilite } from '../types/receipt';
-import { getComptaRoleLabel } from '../services/comptaHelpers';
+import {
+  getComptaRoleLabel,
+  groupAuthorizedComptas,
+  resolveTargetComptaByDate,
+  stripPeriodFromComptaName,
+} from '../services/comptaHelpers';
 import { formatFileSize, type PreparedReceiptFile } from '../services/imageService';
 import type { ReceiptExtractionResult } from '../services/receiptExtractionService';
 import {
@@ -314,38 +319,65 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
               )}
             </div>
 
-            {authorizedComptas.length === 1 && selectedCompta ? (
-              <div className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-bold text-slate-100">
-                    {selectedCompta.comptaName}
-                  </div>
-                  <div className="text-[11px] text-slate-400">
-                    {selectedCompta.orgName} • Devise {selectedCompta.currency}
-                  </div>
-                </div>
-                <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-              </div>
-            ) : (
-              <div className="relative">
-                <select
-                  id="verify-compta-select"
-                  value={activeComptaId}
-                  onChange={(e) => onSelectCompta(e.target.value)}
-                  className="w-full appearance-none bg-slate-950 border border-slate-700 hover:border-blue-500/60 focus:border-blue-500 focus:outline-none rounded-xl px-3.5 py-2.5 pr-9 text-sm font-semibold text-slate-100 transition-colors"
-                >
-                  {authorizedComptas.map((compta) => (
-                    <option key={`${compta.orgId}-${compta.comptaId}`} value={compta.comptaId}>
-                      {compta.comptaName} ({compta.orgName} — {compta.currency})
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-              </div>
-            )}
+            {(() => {
+              const groupedComptas = groupAuthorizedComptas(authorizedComptas);
+              const selectedGroup =
+                groupedComptas.find(
+                  (g) =>
+                    selectedCompta &&
+                    g.orgId === selectedCompta.orgId &&
+                    (g.baseName || stripPeriodFromComptaName(g.comptaName)).toLowerCase() ===
+                      (selectedCompta.baseName || stripPeriodFromComptaName(selectedCompta.comptaName)).toLowerCase()
+                ) || groupedComptas[0];
+              const resolvedCompta = selectedGroup
+                ? resolveTargetComptaByDate(authorizedComptas, selectedGroup, dateInput)
+                : selectedCompta;
+
+              return (
+                <>
+                  {groupedComptas.length === 1 && selectedGroup ? (
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-bold text-slate-100">
+                          {selectedGroup.baseName || stripPeriodFromComptaName(selectedGroup.comptaName)}
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {selectedGroup.orgName} • Devise {selectedGroup.currency}
+                        </div>
+                      </div>
+                      <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <select
+                        id="verify-compta-select"
+                        value={selectedGroup?.comptaId || activeComptaId}
+                        onChange={(e) => onSelectCompta(e.target.value)}
+                        className="w-full appearance-none bg-slate-950 border border-slate-700 hover:border-blue-500/60 focus:border-blue-500 focus:outline-none rounded-xl px-3.5 py-2.5 pr-9 text-sm font-semibold text-slate-100 transition-colors"
+                      >
+                        {groupedComptas.map((compta) => (
+                          <option key={`${compta.orgId}-${compta.comptaId}`} value={compta.comptaId}>
+                            {compta.baseName || stripPeriodFromComptaName(compta.comptaName)} ({compta.orgName} — {compta.currency})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={16}
+                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      />
+                    </div>
+                  )}
+                  {resolvedCompta && (
+                    <p className="text-[11px] text-slate-400 mt-1.5">
+                      Exercice cible selon la date de facture :{' '}
+                      <span className="text-blue-300 font-semibold">
+                        {resolvedCompta.fiscalPeriod || resolvedCompta.comptaName}
+                      </span>
+                    </p>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           {/* 2. Choix du Type de dépense (Carte de Débit vs Demande de Remboursement) */}

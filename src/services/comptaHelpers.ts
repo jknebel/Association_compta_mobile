@@ -39,8 +39,92 @@ export interface RawComptaDoc {
   name?: string | null;
   currency?: string | null;
   isArchived?: boolean | null;
+  fiscalYearStart?: string | null;
+  fiscalYearEnd?: string | null;
+  fiscalPeriod?: string | null;
   directMembers?: RawDirectMemberDoc[];
 }
+
+export const stripPeriodFromComptaName = (name: string): string => {
+  const trimmed = (name || '').trim();
+  const dualYearMatch = trimmed.match(/^(.*?)\s*(\d{2,4})\s*[\/\-]\s*(\d{2,4})$/);
+  if (dualYearMatch && dualYearMatch[1].trim()) {
+    return dualYearMatch[1].trim();
+  }
+  return trimmed;
+};
+
+export const groupAuthorizedComptas = (
+  comptas: AuthorizedComptabilite[]
+): AuthorizedComptabilite[] => {
+  const byGroup = new Map<string, AuthorizedComptabilite>();
+  for (const c of comptas) {
+    const base = c.baseName || stripPeriodFromComptaName(c.comptaName);
+    const key = `${c.orgId}::${base.toLowerCase()}`;
+    const existing = byGroup.get(key);
+    if (!existing) {
+      byGroup.set(key, { ...c, baseName: base });
+      continue;
+    }
+    const existingStart = existing.fiscalYearStart || '';
+    const candidateStart = c.fiscalYearStart || '';
+    if (candidateStart > existingStart) {
+      byGroup.set(key, { ...c, baseName: base });
+    }
+  }
+  return Array.from(byGroup.values());
+};
+
+export const resolveTargetComptaByDate = (
+  allComptas: AuthorizedComptabilite[],
+  selectedCompta: AuthorizedComptabilite,
+  invoiceDateYMD?: string | null
+): AuthorizedComptabilite => {
+  const dateStr = typeof invoiceDateYMD === 'string' ? invoiceDateYMD.trim() : '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return selectedCompta;
+  }
+
+  const targetBase = (
+    selectedCompta.baseName || stripPeriodFromComptaName(selectedCompta.comptaName)
+  ).toLowerCase();
+
+  const sameGroup = allComptas.filter((c) => {
+    if (c.orgId !== selectedCompta.orgId) return false;
+    const cBase = (c.baseName || stripPeriodFromComptaName(c.comptaName)).toLowerCase();
+    return cBase === targetBase;
+  });
+
+  if (sameGroup.length <= 1) {
+    return selectedCompta;
+  }
+
+  // 1. Exact bounded match: fiscalYearStart <= date <= fiscalYearEnd
+  const boundedMatches = sameGroup.filter((c) => {
+    const start = (c.fiscalYearStart || '').trim();
+    const end = (c.fiscalYearEnd || '').trim();
+    return Boolean(start && end && dateStr >= start && dateStr <= end);
+  });
+  if (boundedMatches.length > 0) {
+    boundedMatches.sort((a, b) => (b.fiscalYearStart || '').localeCompare(a.fiscalYearStart || ''));
+    return boundedMatches[0];
+  }
+
+  // 2. Open-ended match: start <= date (no end) OR date <= end (no start)
+  const openMatches = sameGroup.filter((c) => {
+    const start = (c.fiscalYearStart || '').trim();
+    const end = (c.fiscalYearEnd || '').trim();
+    if (start && !end) return dateStr >= start;
+    if (!start && end) return dateStr <= end;
+    return false;
+  });
+  if (openMatches.length > 0) {
+    openMatches.sort((a, b) => (b.fiscalYearStart || '').localeCompare(a.fiscalYearStart || ''));
+    return openMatches[0];
+  }
+
+  return selectedCompta;
+};
 
 export interface OrganizationSnapshotInput {
   org: RawOrganizationDoc;
@@ -254,11 +338,18 @@ export const resolveAuthorizedComptabilites = (
           ? compta.currency.trim().toUpperCase()
           : 'CHF';
 
+      const fStart = typeof compta.fiscalYearStart === 'string' ? compta.fiscalYearStart.trim() : '';
+      const fEnd = typeof compta.fiscalYearEnd === 'string' ? compta.fiscalYearEnd.trim() : '';
+      const fPeriod = typeof compta.fiscalPeriod === 'string' ? compta.fiscalPeriod.trim() : '';
+
       results.push({
         orgId: org.id,
         orgName,
         comptaId: compta.id,
         comptaName,
+        ...(fStart ? { fiscalYearStart: fStart } : {}),
+        ...(fEnd ? { fiscalYearEnd: fEnd } : {}),
+        ...(fPeriod ? { fiscalPeriod: fPeriod } : {}),
         currency,
         role: resolvedRole,
       });

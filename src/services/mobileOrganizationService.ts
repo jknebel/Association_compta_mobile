@@ -135,6 +135,9 @@ export const getUserAuthorizedComptabilites = async (
           name: typeof cData.name === 'string' ? cData.name : cDoc.id,
           currency: typeof cData.currency === 'string' ? cData.currency : 'CHF',
           isArchived,
+          fiscalYearStart: typeof cData.fiscalYearStart === 'string' ? cData.fiscalYearStart : '',
+          fiscalYearEnd: typeof cData.fiscalYearEnd === 'string' ? cData.fiscalYearEnd : '',
+          fiscalPeriod: typeof cData.fiscalPeriod === 'string' ? cData.fiscalPeriod : '',
           directMembers,
         };
       })
