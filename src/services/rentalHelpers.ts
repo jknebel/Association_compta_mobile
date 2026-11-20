@@ -1,4 +1,12 @@
-import type { Rental, NewRentalInput, RentalStatus } from '../types/rental';
+import type { Rental, NewRentalInput } from '../types/rental';
+
+export const RENTAL_ROOMS = ['Local avec cuisine', 'Local sans cuisine'] as const;
+export type RentalRoomOption = (typeof RENTAL_ROOMS)[number];
+
+export const isValidRentalRoom = (roomName?: string | null): roomName is RentalRoomOption => {
+  if (typeof roomName !== 'string') return false;
+  return (RENTAL_ROOMS as readonly string[]).includes(roomName.trim());
+};
 
 export interface RentalStats {
   pendingAmount: number;
@@ -93,8 +101,11 @@ export const validateRentalInput = (input: NewRentalInput): RentalValidationResu
   if (!input.renterName || !input.renterName.trim()) {
     return { valid: false, error: 'Veuillez renseigner le nom du locataire.' };
   }
-  if (!input.roomName || !input.roomName.trim()) {
-    return { valid: false, error: 'Veuillez spécifier le local ou la salle louée.' };
+  if (!isValidRentalRoom(input.roomName)) {
+    return {
+      valid: false,
+      error: 'Veuillez choisir entre « Local avec cuisine » et « Local sans cuisine ».',
+    };
   }
   if (typeof input.amount !== 'number' || isNaN(input.amount) || input.amount <= 0) {
     return { valid: false, error: 'Le montant en CHF doit être supérieur à zéro.' };

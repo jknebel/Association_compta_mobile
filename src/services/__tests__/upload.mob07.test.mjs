@@ -95,6 +95,8 @@ describe('[MOB-07] uploadHelpers Unit & Integration Tests', () => {
         submittedByName: 'Jean Dupont',
         submittedByEmail: 'Jean.Dupont@tdgl.ch',
         reimbursementIban: 'CH93 0076 2011 6238 5295 7',
+        reimbursementNpa: '1000',
+        reimbursementCity: 'Lausanne',
       });
 
       assert.deepStrictEqual(doc, {
@@ -115,9 +117,11 @@ describe('[MOB-07] uploadHelpers Unit & Integration Tests', () => {
       });
       assert.strictEqual('reimbursementStatus' in doc, false);
       assert.strictEqual('reimbursementIban' in doc, false);
+      assert.strictEqual('reimbursementNpa' in doc, false);
+      assert.strictEqual('reimbursementCity' in doc, false);
     });
 
-    it('builds REIMBURSEMENT receipt document with reimbursementStatus=PENDING and reimbursementIban', () => {
+    it('builds REIMBURSEMENT receipt document with reimbursementStatus=PENDING, IBAN, NPA and city', () => {
       const doc = buildReceiptDocument({
         receiptId: 'rcpt-200-def',
         url: 'https://storage.example.com/facture.pdf',
@@ -132,11 +136,15 @@ describe('[MOB-07] uploadHelpers Unit & Integration Tests', () => {
         submittedByName: 'Marie Curie',
         submittedByEmail: 'marie@tdgl.ch',
         reimbursementIban: 'CH93 0076 2011 6238 5295 7',
+        reimbursementNpa: ' 1004 ',
+        reimbursementCity: ' Lausanne ',
       });
 
       assert.strictEqual(doc.expenseType, 'REIMBURSEMENT');
       assert.strictEqual(doc.reimbursementStatus, 'PENDING');
       assert.strictEqual(doc.reimbursementIban, 'CH93 0076 2011 6238 5295 7');
+      assert.strictEqual(doc.reimbursementNpa, '1004');
+      assert.strictEqual(doc.reimbursementCity, 'Lausanne');
     });
   });
 

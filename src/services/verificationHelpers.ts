@@ -1,6 +1,8 @@
 export type ExpenseTypeChoice = 'DEBIT_CARD' | 'REIMBURSEMENT';
 
 export const SAVED_IBAN_STORAGE_KEY = 'asso_compta_saved_iban_v1';
+export const SAVED_NPA_STORAGE_KEY = 'asso_compta_saved_npa_v1';
+export const SAVED_CITY_STORAGE_KEY = 'asso_compta_saved_city_v1';
 
 export interface VerifiedReceiptFormInput {
   comptaId?: string | null;
@@ -10,6 +12,8 @@ export interface VerifiedReceiptFormInput {
   merchantName?: string | null;
   description?: string | null;
   reimbursementIban?: string | null;
+  reimbursementNpa?: string | null;
+  reimbursementCity?: string | null;
 }
 
 export interface VerifiedReceiptPayload {
@@ -20,6 +24,8 @@ export interface VerifiedReceiptPayload {
   merchantName: string;
   description: string;
   reimbursementIban?: string;
+  reimbursementNpa?: string;
+  reimbursementCity?: string;
 }
 
 export interface VerificationFieldErrors {
@@ -28,6 +34,8 @@ export interface VerificationFieldErrors {
   amount?: string;
   date?: string;
   iban?: string;
+  npa?: string;
+  city?: string;
 }
 
 export interface ReceiptVerificationResult {
@@ -49,13 +57,48 @@ export const normalizeIban = (rawIban?: string | null): string => {
 
 /**
  * Vérifie si un IBAN saisi respecte la structure ISO 13616 (code pays 2 lettres + 2 chiffres clé + 11 à 30 caractères alphanumériques).
- * Un IBAN vide retourne `true` (car optionnel si le caissier connaît déjà les coordonnées du membre).
+ * Un IBAN vide retourne `true` pour la vérification de format seul (l'obligation en cas de remboursement est vérifiée par `validateVerifiedReceiptForm`).
  */
 export const isValidIbanFormat = (rawIban?: string | null): boolean => {
   const compact = typeof rawIban === 'string' ? rawIban.replace(/[\s-]+/g, '').toUpperCase() : '';
   if (!compact) return true;
   if (compact.length < 15 || compact.length > 34) return false;
   return /^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(compact);
+};
+
+/**
+ * Normalise un NPA / code postal (suppression des espaces superflus, majuscules).
+ */
+export const normalizeNpa = (rawNpa?: string | null): string => {
+  if (typeof rawNpa !== 'string') return '';
+  return rawNpa.trim().replace(/\s+/g, ' ').toUpperCase().slice(0, 12);
+};
+
+/**
+ * Vérifie qu'un NPA / code postal est valide (ex. 4 chiffres suisses `1000` ou code postal européen de 4 à 10 caractères alphanumériques).
+ */
+export const isValidNpaFormat = (rawNpa?: string | null): boolean => {
+  const clean = normalizeNpa(rawNpa);
+  if (!clean) return false;
+  const compact = clean.replace(/[\s-]+/g, '');
+  if (compact.length < 4 || compact.length > 10) return false;
+  return /^[A-Z0-9][A-Z0-9 -]*[A-Z0-9]$/.test(clean);
+};
+
+/**
+ * Normalise un nom de ville (trim et espaces simples).
+ */
+export const normalizeCity = (rawCity?: string | null): string => {
+  if (typeof rawCity !== 'string') return '';
+  return rawCity.trim().replace(/\s+/g, ' ').slice(0, 80);
+};
+
+/**
+ * Vérifie qu'un nom de ville est renseigné (au moins 2 caractères).
+ */
+export const isValidCityFormat = (rawCity?: string | null): boolean => {
+  const clean = normalizeCity(rawCity);
+  return clean.length >= 2;
 };
 
 /**
@@ -154,8 +197,25 @@ export const validateVerifiedReceiptForm = (
   }
 
   const formattedIban = normalizeIban(input?.reimbursementIban);
-  if (validExpenseType === 'REIMBURSEMENT' && formattedIban && !isValidIbanFormat(formattedIban)) {
-    errors.iban = "Le format de l'IBAN est invalide (exemple attendu : CH93 0076 2011 6238 5295 7).";
+  const formattedNpa = normalizeNpa(input?.reimbursementNpa);
+  const formattedCity = normalizeCity(input?.reimbursementCity);
+
+  if (validExpenseType === 'REIMBURSEMENT') {
+    if (!formattedIban) {
+      errors.iban = "Veuillez saisir votre IBAN (obligatoire pour les paiements bancaires).";
+    } else if (!isValidIbanFormat(formattedIban)) {
+      errors.iban = "Le format de l'IBAN est invalide (exemple attendu : CH93 0076 2011 6238 5295 7).";
+    }
+
+    if (!formattedNpa) {
+      errors.npa = 'Veuillez saisir votre NPA (obligatoire pour les paiements bancaires).';
+    } else if (!isValidNpaFormat(formattedNpa)) {
+      errors.npa = 'Le format du NPA est invalide (exemple attendu : 1000).';
+    }
+
+    if (!isValidCityFormat(formattedCity)) {
+      errors.city = 'Veuillez saisir votre ville (obligatoire pour les paiements bancaires).';
+    }
   }
 
   const errorList = Object.values(errors).filter((msg): msg is string => Boolean(msg));
@@ -182,6 +242,12 @@ export const validateVerifiedReceiptForm = (
     description: cleanDescription,
     ...(validExpenseType === 'REIMBURSEMENT' && formattedIban
       ? { reimbursementIban: formattedIban }
+      : {}),
+    ...(validExpenseType === 'REIMBURSEMENT' && formattedNpa
+      ? { reimbursementNpa: formattedNpa }
+      : {}),
+    ...(validExpenseType === 'REIMBURSEMENT' && formattedCity
+      ? { reimbursementCity: formattedCity }
       : {}),
   };
 
@@ -228,6 +294,88 @@ export const saveIbanToStorage = (iban: string, storage?: Storage | null): void 
       s.setItem(SAVED_IBAN_STORAGE_KEY, normalized);
     } else {
       s.removeItem(SAVED_IBAN_STORAGE_KEY);
+    }
+  } catch {
+    // Ignorer les erreurs de stockage privé
+  }
+};
+
+/**
+ * Récupère le NPA mémorisé localement sur l'appareil (localStorage).
+ */
+export const getSavedNpaFromStorage = (storage?: Storage | null): string => {
+  try {
+    const s =
+      storage !== undefined
+        ? storage
+        : typeof localStorage !== 'undefined'
+        ? localStorage
+        : null;
+    if (!s) return '';
+    return normalizeNpa(s.getItem(SAVED_NPA_STORAGE_KEY));
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Mémorise le NPA localement sur l'appareil pour éviter la re-saisie lors des prochains remboursements.
+ */
+export const saveNpaToStorage = (npa: string, storage?: Storage | null): void => {
+  try {
+    const s =
+      storage !== undefined
+        ? storage
+        : typeof localStorage !== 'undefined'
+        ? localStorage
+        : null;
+    if (!s) return;
+    const normalized = normalizeNpa(npa);
+    if (normalized) {
+      s.setItem(SAVED_NPA_STORAGE_KEY, normalized);
+    } else {
+      s.removeItem(SAVED_NPA_STORAGE_KEY);
+    }
+  } catch {
+    // Ignorer les erreurs de stockage privé
+  }
+};
+
+/**
+ * Récupère la ville mémorisée localement sur l'appareil (localStorage).
+ */
+export const getSavedCityFromStorage = (storage?: Storage | null): string => {
+  try {
+    const s =
+      storage !== undefined
+        ? storage
+        : typeof localStorage !== 'undefined'
+        ? localStorage
+        : null;
+    if (!s) return '';
+    return normalizeCity(s.getItem(SAVED_CITY_STORAGE_KEY));
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Mémorise la ville localement sur l'appareil pour éviter la re-saisie lors des prochains remboursements.
+ */
+export const saveCityToStorage = (city: string, storage?: Storage | null): void => {
+  try {
+    const s =
+      storage !== undefined
+        ? storage
+        : typeof localStorage !== 'undefined'
+        ? localStorage
+        : null;
+    if (!s) return;
+    const normalized = normalizeCity(city);
+    if (normalized) {
+      s.setItem(SAVED_CITY_STORAGE_KEY, normalized);
+    } else {
+      s.removeItem(SAVED_CITY_STORAGE_KEY);
     }
   } catch {
     // Ignorer les erreurs de stockage privé

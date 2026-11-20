@@ -40,20 +40,26 @@ export const saveCachedRentals = (rentals: Rental[]): void => {
 };
 
 import {
+  RENTAL_ROOMS,
+  isValidRentalRoom,
   generateRentalId,
   calculateRentalStats,
   filterRentals,
   validateRentalInput,
   formatRentalDateRange,
+  type RentalRoomOption,
   type RentalStats,
 } from './rentalHelpers';
 
 export {
+  RENTAL_ROOMS,
+  isValidRentalRoom,
   generateRentalId,
   calculateRentalStats,
   filterRentals,
   validateRentalInput,
   formatRentalDateRange,
+  type RentalRoomOption,
   type RentalStats,
 };
 

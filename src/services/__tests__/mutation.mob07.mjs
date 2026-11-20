@@ -57,12 +57,28 @@ const mutants = [
     name: 'M7: Omit reimbursementIban on REIMBURSEMENT in buildReceiptDocument',
     mutate: (code) =>
       code.replace(
-        'if (cleanIban) {\n      docObj.reimbursementIban = cleanIban;\n    }',
+        /if \(cleanIban\) \{\r?\n      docObj\.reimbursementIban = cleanIban;\r?\n    \}/,
         'if (false) {}'
       ),
   },
   {
-    name: 'M8: Invert queueId filter in removeOfflineReceiptFromQueue',
+    name: 'M8: Omit reimbursementNpa on REIMBURSEMENT in buildReceiptDocument',
+    mutate: (code) =>
+      code.replace(
+        /if \(cleanNpa\) \{\r?\n      docObj\.reimbursementNpa = cleanNpa;\r?\n    \}/,
+        'if (false) {}'
+      ),
+  },
+  {
+    name: 'M9: Omit reimbursementCity on REIMBURSEMENT in buildReceiptDocument',
+    mutate: (code) =>
+      code.replace(
+        /if \(cleanCity\) \{\r?\n      docObj\.reimbursementCity = cleanCity;\r?\n    \}/,
+        'if (false) {}'
+      ),
+  },
+  {
+    name: 'M10: Invert queueId filter in removeOfflineReceiptFromQueue',
     mutate: (code) =>
       code.replace(
         'const updated = getOfflineReceiptQueue(s).filter((q) => q.queueId !== queueId);',

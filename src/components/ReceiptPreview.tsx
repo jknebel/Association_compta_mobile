@@ -37,6 +37,12 @@ import {
   getSavedIbanFromStorage,
   saveIbanToStorage,
   normalizeIban,
+  getSavedNpaFromStorage,
+  saveNpaToStorage,
+  normalizeNpa,
+  getSavedCityFromStorage,
+  saveCityToStorage,
+  normalizeCity,
   validateVerifiedReceiptForm,
 } from '../services/verificationHelpers';
 
@@ -83,7 +89,12 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
   );
   const [description, setDescription] = useState<string>('');
   const [ibanInput, setIbanInput] = useState<string>(() => getSavedIbanFromStorage());
-  const [ibanSavedNotice, setIbanSavedNotice] = useState<boolean>(false);
+  const [npaInput, setNpaInput] = useState<string>(() => getSavedNpaFromStorage());
+  const [cityInput, setCityInput] = useState<string>(() => getSavedCityFromStorage());
+  const [bankDetailsSavedNotice, setBankDetailsSavedNotice] = useState<boolean>(false);
+  const [touchedIban, setTouchedIban] = useState<boolean>(false);
+  const [touchedNpa, setTouchedNpa] = useState<boolean>(false);
+  const [touchedCity, setTouchedCity] = useState<boolean>(false);
   const [touchedSubmit, setTouchedSubmit] = useState<boolean>(false);
 
   // Synchroniser si l'extraction arrive ou change
@@ -110,15 +121,42 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
     merchantName,
     description,
     reimbursementIban: expenseType === 'REIMBURSEMENT' ? ibanInput : '',
+    reimbursementNpa: expenseType === 'REIMBURSEMENT' ? npaInput : '',
+    reimbursementCity: expenseType === 'REIMBURSEMENT' ? cityInput : '',
   });
 
+  const showBankDetailsSavedNotice = () => {
+    setBankDetailsSavedNotice(true);
+    setTimeout(() => setBankDetailsSavedNotice(false), 2500);
+  };
+
   const handleIbanBlur = () => {
+    setTouchedIban(true);
     const formatted = normalizeIban(ibanInput);
     setIbanInput(formatted);
     saveIbanToStorage(formatted);
     if (formatted) {
-      setIbanSavedNotice(true);
-      setTimeout(() => setIbanSavedNotice(false), 2500);
+      showBankDetailsSavedNotice();
+    }
+  };
+
+  const handleNpaBlur = () => {
+    setTouchedNpa(true);
+    const formatted = normalizeNpa(npaInput);
+    setNpaInput(formatted);
+    saveNpaToStorage(formatted);
+    if (formatted) {
+      showBankDetailsSavedNotice();
+    }
+  };
+
+  const handleCityBlur = () => {
+    setTouchedCity(true);
+    const formatted = normalizeCity(cityInput);
+    setCityInput(formatted);
+    saveCityToStorage(formatted);
+    if (formatted) {
+      showBankDetailsSavedNotice();
     }
   };
 
@@ -130,8 +168,16 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
       return;
     }
 
-    if (expenseType === 'REIMBURSEMENT' && ibanInput.trim()) {
-      saveIbanToStorage(ibanInput);
+    if (expenseType === 'REIMBURSEMENT') {
+      if (ibanInput.trim()) {
+        saveIbanToStorage(ibanInput);
+      }
+      if (npaInput.trim()) {
+        saveNpaToStorage(npaInput);
+      }
+      if (cityInput.trim()) {
+        saveCityToStorage(cityInput);
+      }
     }
 
     onSubmitVerified(validation.payload, preparedFile);
@@ -571,48 +617,113 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
             </div>
           </div>
 
-          {/* 5. Champ IBAN mémorisé (affiché si Demande de Remboursement) */}
+          {/* 5. Coordonnées bancaires mémorisées : IBAN, NPA et Ville obligatoires (affichés si Demande de Remboursement) */}
           {expenseType === 'REIMBURSEMENT' && (
-            <div className="bg-emerald-950/25 border border-emerald-500/30 rounded-xl p-3.5 space-y-2">
+            <div className="bg-emerald-950/25 border border-emerald-500/30 rounded-xl p-3.5 space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <label
-                  htmlFor="verify-iban-input"
-                  className="flex items-center gap-1.5 text-xs font-bold text-emerald-300"
-                >
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
                   <Landmark size={14} className="text-emerald-400" />
-                  <span>IBAN pour votre remboursement</span>
-                </label>
-                {ibanSavedNotice ? (
+                  <span>Coordonnées bancaires (obligatoires) *</span>
+                </div>
+                {bankDetailsSavedNotice ? (
                   <span className="text-[10px] text-emerald-400 font-semibold">
                     ✓ Mémorisé sur cet appareil
                   </span>
-                ) : ibanInput ? (
+                ) : ibanInput || npaInput || cityInput ? (
                   <span className="text-[10px] text-slate-400">
                     Mémorisé automatiquement
                   </span>
                 ) : null}
               </div>
 
-              <input
-                id="verify-iban-input"
-                type="text"
-                placeholder="CH93 0076 2011 6238 5295 7"
-                value={ibanInput}
-                onChange={(e) => setIbanInput(e.target.value)}
-                onBlur={handleIbanBlur}
-                className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2 text-xs font-mono text-slate-100 focus:outline-none transition-colors ${
-                  validation.errors.iban
-                    ? 'border-red-500/70 focus:border-red-500'
-                    : 'border-emerald-700/50 focus:border-emerald-500'
-                }`}
-              />
-              {validation.errors.iban ? (
-                <p className="text-[11px] text-red-400">{validation.errors.iban}</p>
-              ) : (
-                <p className="text-[10px] text-slate-400">
-                  Votre nom, prénom et e-mail seront joints automatiquement pour que le caissier puisse vous rembourser.
-                </p>
-              )}
+              {/* IBAN */}
+              <div className="space-y-1">
+                <label
+                  htmlFor="verify-iban-input"
+                  className="block text-[11px] font-semibold text-emerald-200/90"
+                >
+                  IBAN *
+                </label>
+                <input
+                  id="verify-iban-input"
+                  type="text"
+                  required
+                  placeholder="CH93 0076 2011 6238 5295 7"
+                  value={ibanInput}
+                  onChange={(e) => setIbanInput(e.target.value)}
+                  onBlur={handleIbanBlur}
+                  className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2 text-xs font-mono text-slate-100 focus:outline-none transition-colors ${
+                    validation.errors.iban && (touchedSubmit || touchedIban || ibanInput !== '')
+                      ? 'border-red-500/70 focus:border-red-500'
+                      : 'border-emerald-700/50 focus:border-emerald-500'
+                  }`}
+                />
+                {validation.errors.iban && (touchedSubmit || touchedIban || ibanInput !== '') && (
+                  <p className="text-[11px] text-red-400">{validation.errors.iban}</p>
+                )}
+              </div>
+
+              {/* NPA et Ville (obligatoires pour paiements bancaires) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="sm:col-span-1 space-y-1">
+                  <label
+                    htmlFor="verify-npa-input"
+                    className="block text-[11px] font-semibold text-emerald-200/90"
+                  >
+                    NPA *
+                  </label>
+                  <input
+                    id="verify-npa-input"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="postal-code"
+                    required
+                    placeholder="1000"
+                    value={npaInput}
+                    onChange={(e) => setNpaInput(e.target.value)}
+                    onBlur={handleNpaBlur}
+                    className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none transition-colors ${
+                      validation.errors.npa && (touchedSubmit || touchedNpa || npaInput !== '')
+                        ? 'border-red-500/70 focus:border-red-500'
+                        : 'border-emerald-700/50 focus:border-emerald-500'
+                    }`}
+                  />
+                  {validation.errors.npa && (touchedSubmit || touchedNpa || npaInput !== '') && (
+                    <p className="text-[11px] text-red-400">{validation.errors.npa}</p>
+                  )}
+                </div>
+
+                <div className="sm:col-span-2 space-y-1">
+                  <label
+                    htmlFor="verify-city-input"
+                    className="block text-[11px] font-semibold text-emerald-200/90"
+                  >
+                    Ville *
+                  </label>
+                  <input
+                    id="verify-city-input"
+                    type="text"
+                    autoComplete="address-level2"
+                    required
+                    placeholder="Lausanne"
+                    value={cityInput}
+                    onChange={(e) => setCityInput(e.target.value)}
+                    onBlur={handleCityBlur}
+                    className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none transition-colors ${
+                      validation.errors.city && (touchedSubmit || touchedCity || cityInput !== '')
+                        ? 'border-red-500/70 focus:border-red-500'
+                        : 'border-emerald-700/50 focus:border-emerald-500'
+                    }`}
+                  />
+                  {validation.errors.city && (touchedSubmit || touchedCity || cityInput !== '') && (
+                    <p className="text-[11px] text-red-400">{validation.errors.city}</p>
+                  )}
+                </div>
+              </div>
+
+              <p className="text-[10px] text-slate-400">
+                L'IBAN, le NPA et la ville sont obligatoires pour les paiements bancaires et sauvegardés automatiquement sur cet appareil. Votre nom, prénom et e-mail sont joints automatiquement.
+              </p>
             </div>
           )}
 

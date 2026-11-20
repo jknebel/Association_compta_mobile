@@ -19,14 +19,14 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import type { Rental, NewRentalInput, RentalStatus } from '../types/rental';
 import {
+  RENTAL_ROOMS,
+  validateRentalInput,
   subscribeRentals,
   createRental,
   markRentalAsPaid,
   updateRentalStatus,
   deleteRental,
 } from '../services/rentalService';
-
-const COMMON_ROOMS = ['Grande salle', 'Foyer', 'Chalet', 'Cuisine & Réfectoire', 'Autre'];
 
 export const RentalsScreen: React.FC = () => {
   const { userProfile, selectedCompta, authorizedComptas } = useAuth();
@@ -41,7 +41,7 @@ export const RentalsScreen: React.FC = () => {
 
   // Form state
   const [formData, setFormData] = useState<NewRentalInput>({
-    roomName: 'Grande salle',
+    roomName: RENTAL_ROOMS[0],
     renterName: '',
     renterPhone: '',
     renterEmail: '',
@@ -119,12 +119,9 @@ export const RentalsScreen: React.FC = () => {
   const handleCreateRental = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userProfile) return;
-    if (!formData.renterName.trim()) {
-      alert('Veuillez saisir le nom du locataire.');
-      return;
-    }
-    if (formData.amount <= 0) {
-      alert('Veuillez saisir un tarif valide en CHF.');
+    const validationResult = validateRentalInput(formData);
+    if (!validationResult.valid) {
+      alert(validationResult.error || 'Veuillez vérifier les informations de la location.');
       return;
     }
 
@@ -134,7 +131,7 @@ export const RentalsScreen: React.FC = () => {
       setIsModalOpen(false);
       // Réinitialiser le formulaire
       setFormData({
-        roomName: 'Grande salle',
+        roomName: RENTAL_ROOMS[0],
         renterName: '',
         renterPhone: '',
         renterEmail: '',
@@ -480,35 +477,31 @@ export const RentalsScreen: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateRental} className="space-y-3.5">
-              {/* Choix du local */}
+              {/* Choix du local (uniquement 2 locaux : avec ou sans cuisine) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Local / Salle louée
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Local loué *
                 </label>
-                <div className="grid grid-cols-2 gap-1.5 mb-2">
-                  {COMMON_ROOMS.slice(0, 4).map((room) => (
-                    <button
-                      type="button"
-                      key={room}
-                      onClick={() => setFormData({ ...formData, roomName: room })}
-                      className={`py-1.5 px-2 text-xs rounded-lg border text-left truncate transition-colors ${
-                        formData.roomName === room
-                          ? 'border-indigo-500 bg-indigo-500/20 text-indigo-300 font-semibold'
-                          : 'border-slate-800 bg-slate-950/50 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {room}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 gap-2">
+                  {RENTAL_ROOMS.map((room) => {
+                    const isSelected = formData.roomName === room;
+                    return (
+                      <button
+                        type="button"
+                        key={room}
+                        onClick={() => setFormData({ ...formData, roomName: room })}
+                        className={`py-2.5 px-3 text-xs rounded-xl border text-left transition-all flex items-center justify-between gap-1.5 ${
+                          isSelected
+                            ? 'border-indigo-500 bg-indigo-500/20 text-indigo-200 font-semibold shadow-sm shadow-indigo-500/10'
+                            : 'border-slate-800 bg-slate-950/50 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                        }`}
+                      >
+                        <span>{room}</span>
+                        {isSelected && <CheckCircle2 size={14} className="text-indigo-400 shrink-0" />}
+                      </button>
+                    );
+                  })}
                 </div>
-                <input
-                  type="text"
-                  placeholder="Ou précisez le nom du local…"
-                  value={formData.roomName}
-                  onChange={(e) => setFormData({ ...formData, roomName: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-                  required
-                />
               </div>
 
               {/* Nom du locataire */}

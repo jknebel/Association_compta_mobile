@@ -35,7 +35,10 @@ const mutants = [
   {
     name: 'M4: Ignore missing comptaId in validateVerifiedReceiptForm',
     mutate: (code) =>
-      code.replace("if (!comptaId) {\n    errors.comptaId = 'Veuillez sélectionner une comptabilité cible.';\n  }", 'if (false) {}'),
+      code.replace(
+        /if \(!comptaId\) \{\r?\n    errors\.comptaId = 'Veuillez sélectionner une comptabilité cible\.';\r?\n  \}/,
+        'if (false) {}'
+      ),
   },
   {
     name: 'M5: Ignore missing expenseType in validateVerifiedReceiptForm',
@@ -43,12 +46,9 @@ const mutants = [
       code.replace("rawType === 'DEBIT_CARD' || rawType === 'REIMBURSEMENT' ? rawType : null;", "'DEBIT_CARD';"),
   },
   {
-    name: 'M6: Bypass IBAN validation for REIMBURSEMENT in validateVerifiedReceiptForm',
+    name: 'M6: Bypass IBAN/NPA/City validation for REIMBURSEMENT in validateVerifiedReceiptForm',
     mutate: (code) =>
-      code.replace(
-        "if (validExpenseType === 'REIMBURSEMENT' && formattedIban && !isValidIbanFormat(formattedIban))",
-        'if (false)'
-      ),
+      code.replace("if (validExpenseType === 'REIMBURSEMENT') {", 'if (false) {'),
   },
   {
     name: 'M7: Attach reimbursementIban even on DEBIT_CARD',
@@ -62,8 +62,34 @@ const mutants = [
     name: 'M8: Invert saveIbanToStorage non-empty condition',
     mutate: (code) =>
       code.replace(
-        'if (normalized) {\n      s.setItem(SAVED_IBAN_STORAGE_KEY, normalized);',
+        /if \(normalized\) \{\r?\n      s\.setItem\(SAVED_IBAN_STORAGE_KEY, normalized\);/,
         'if (!normalized) {\n      s.setItem(SAVED_IBAN_STORAGE_KEY, normalized);'
+      ),
+  },
+  {
+    name: 'M9: Bypass NPA format check in validateVerifiedReceiptForm',
+    mutate: (code) =>
+      code.replace('} else if (!isValidNpaFormat(formattedNpa)) {', '} else if (false) {'),
+  },
+  {
+    name: 'M10: Bypass City validation in validateVerifiedReceiptForm',
+    mutate: (code) =>
+      code.replace('if (!isValidCityFormat(formattedCity)) {', 'if (false) {'),
+  },
+  {
+    name: 'M11: Invert saveNpaToStorage non-empty condition',
+    mutate: (code) =>
+      code.replace(
+        /if \(normalized\) \{\r?\n      s\.setItem\(SAVED_NPA_STORAGE_KEY, normalized\);/,
+        'if (!normalized) {\n      s.setItem(SAVED_NPA_STORAGE_KEY, normalized);'
+      ),
+  },
+  {
+    name: 'M12: Invert saveCityToStorage non-empty condition',
+    mutate: (code) =>
+      code.replace(
+        /if \(normalized\) \{\r?\n      s\.setItem\(SAVED_CITY_STORAGE_KEY, normalized\);/,
+        'if (!normalized) {\n      s.setItem(SAVED_CITY_STORAGE_KEY, normalized);'
       ),
   },
 ];

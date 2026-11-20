@@ -3,13 +3,23 @@ import assert from 'node:assert/strict';
 
 import {
   SAVED_IBAN_STORAGE_KEY,
+  SAVED_NPA_STORAGE_KEY,
+  SAVED_CITY_STORAGE_KEY,
   normalizeIban,
   isValidIbanFormat,
+  normalizeNpa,
+  isValidNpaFormat,
+  normalizeCity,
+  isValidCityFormat,
   parsePositiveAmountInput,
   isValidIsoDateInput,
   validateVerifiedReceiptForm,
   getSavedIbanFromStorage,
   saveIbanToStorage,
+  getSavedNpaFromStorage,
+  saveNpaToStorage,
+  getSavedCityFromStorage,
+  saveCityToStorage,
 } from '../verificationHelpers.ts';
 
 describe('[MOB-06] verificationHelpers Unit & Integration Tests', () => {
@@ -80,8 +90,42 @@ describe('[MOB-06] verificationHelpers Unit & Integration Tests', () => {
     });
   });
 
+  describe('normalizeNpa() & isValidNpaFormat()', () => {
+    it('normalizes and accepts valid Swiss and European postal codes', () => {
+      assert.strictEqual(normalizeNpa('  1000  '), '1000');
+      assert.strictEqual(normalizeNpa('f-74500'), 'F-74500');
+      assert.strictEqual(normalizeNpa(null), '');
+      assert.strictEqual(isValidNpaFormat('1000'), true);
+      assert.strictEqual(isValidNpaFormat('1800'), true);
+      assert.strictEqual(isValidNpaFormat('74500'), true);
+    });
+
+    it('rejects empty, too short (<4), or invalid NPA values', () => {
+      assert.strictEqual(isValidNpaFormat(''), false);
+      assert.strictEqual(isValidNpaFormat('123'), false);
+      assert.strictEqual(isValidNpaFormat('1000!'), false);
+      assert.strictEqual(isValidNpaFormat(null), false);
+    });
+  });
+
+  describe('normalizeCity() & isValidCityFormat()', () => {
+    it('normalizes and accepts valid city names', () => {
+      assert.strictEqual(normalizeCity('  Lausanne  '), 'Lausanne');
+      assert.strictEqual(normalizeCity('Saint   Sulpice'), 'Saint Sulpice');
+      assert.strictEqual(isValidCityFormat('Lausanne'), true);
+      assert.strictEqual(isValidCityFormat('Au'), true);
+    });
+
+    it('rejects empty or single-character city names', () => {
+      assert.strictEqual(isValidCityFormat(''), false);
+      assert.strictEqual(isValidCityFormat('   '), false);
+      assert.strictEqual(isValidCityFormat('A'), false);
+      assert.strictEqual(isValidCityFormat(null), false);
+    });
+  });
+
   describe('validateVerifiedReceiptForm()', () => {
-    it('validates a complete DEBIT_CARD receipt and omits reimbursementIban', () => {
+    it('validates a complete DEBIT_CARD receipt and omits reimbursement bank fields', () => {
       const result = validateVerifiedReceiptForm({
         comptaId: 'louveteaux-26-27',
         expenseType: 'DEBIT_CARD',
@@ -90,6 +134,8 @@ describe('[MOB-06] verificationHelpers Unit & Integration Tests', () => {
         merchantName: '  Migros  ',
         description: '  Achat goûter  ',
         reimbursementIban: 'CH93 0076 2011 6238 5295 7',
+        reimbursementNpa: '1000',
+        reimbursementCity: 'Lausanne',
       });
       assert.strictEqual(result.valid, true);
       assert.strictEqual(result.firstError, null);
@@ -103,7 +149,7 @@ describe('[MOB-06] verificationHelpers Unit & Integration Tests', () => {
       });
     });
 
-    it('validates a complete REIMBURSEMENT receipt and formats reimbursementIban', () => {
+    it('validates a complete REIMBURSEMENT receipt and formats IBAN, NPA and city', () => {
       const result = validateVerifiedReceiptForm({
         comptaId: 'pionniers-26-27',
         expenseType: 'REIMBURSEMENT',
@@ -112,6 +158,8 @@ describe('[MOB-06] verificationHelpers Unit & Integration Tests', () => {
         merchantName: 'CFF',
         description: 'Billets train camp',
         reimbursementIban: 'ch9300762011623852957',
+        reimbursementNpa: ' 1004 ',
+        reimbursementCity: '  Lausanne ',
       });
       assert.strictEqual(result.valid, true);
       assert.deepStrictEqual(result.payload, {
@@ -122,10 +170,12 @@ describe('[MOB-06] verificationHelpers Unit & Integration Tests', () => {
         merchantName: 'CFF',
         description: 'Billets train camp',
         reimbursementIban: 'CH93 0076 2011 6238 5295 7',
+        reimbursementNpa: '1004',
+        reimbursementCity: 'Lausanne',
       });
     });
 
-    it('rejects form when comptaId, expenseType, amount, date, or IBAN are invalid', () => {
+    it('rejects form when comptaId, expenseType, amount, date, IBAN, NPA, or city are missing/invalid', () => {
       const resMissingAll = validateVerifiedReceiptForm({
         comptaId: '',
         expenseType: '',
@@ -145,13 +195,41 @@ describe('[MOB-06] verificationHelpers Unit & Integration Tests', () => {
         amountInput: '25.00',
         dateInput: '2026-10-21',
         reimbursementIban: 'BAD_IBAN',
+        reimbursementNpa: '1000',
+        reimbursementCity: 'Lausanne',
       });
       assert.strictEqual(resBadIban.valid, false);
       assert.ok(resBadIban.errors.iban);
+
+      const resMissingBankDetails = validateVerifiedReceiptForm({
+        comptaId: 'c1',
+        expenseType: 'REIMBURSEMENT',
+        amountInput: '25.00',
+        dateInput: '2026-10-21',
+        reimbursementIban: '',
+        reimbursementNpa: '',
+        reimbursementCity: '',
+      });
+      assert.strictEqual(resMissingBankDetails.valid, false);
+      assert.ok(resMissingBankDetails.errors.iban);
+      assert.ok(resMissingBankDetails.errors.npa);
+      assert.ok(resMissingBankDetails.errors.city);
+
+      const resBadNpa = validateVerifiedReceiptForm({
+        comptaId: 'c1',
+        expenseType: 'REIMBURSEMENT',
+        amountInput: '25.00',
+        dateInput: '2026-10-21',
+        reimbursementIban: 'CH93 0076 2011 6238 5295 7',
+        reimbursementNpa: '12',
+        reimbursementCity: 'Lausanne',
+      });
+      assert.strictEqual(resBadNpa.valid, false);
+      assert.ok(resBadNpa.errors.npa);
     });
   });
 
-  describe('IBAN localStorage persistence', () => {
+  describe('IBAN, NPA & City localStorage persistence', () => {
     function createMockStorage() {
       const store = new Map();
       return {
@@ -161,9 +239,12 @@ describe('[MOB-06] verificationHelpers Unit & Integration Tests', () => {
       };
     }
 
-    it('saves normalized IBAN and retrieves it from storage', () => {
+    it('saves normalized IBAN, NPA and city and retrieves them from storage', () => {
       const storage = createMockStorage();
       saveIbanToStorage('ch9300762011623852957', storage);
+      saveNpaToStorage(' 1004 ', storage);
+      saveCityToStorage('  Lausanne  ', storage);
+
       assert.strictEqual(
         storage.getItem(SAVED_IBAN_STORAGE_KEY),
         'CH93 0076 2011 6238 5295 7'
@@ -172,15 +253,30 @@ describe('[MOB-06] verificationHelpers Unit & Integration Tests', () => {
         getSavedIbanFromStorage(storage),
         'CH93 0076 2011 6238 5295 7'
       );
+      assert.strictEqual(storage.getItem(SAVED_NPA_STORAGE_KEY), '1004');
+      assert.strictEqual(getSavedNpaFromStorage(storage), '1004');
+      assert.strictEqual(storage.getItem(SAVED_CITY_STORAGE_KEY), 'Lausanne');
+      assert.strictEqual(getSavedCityFromStorage(storage), 'Lausanne');
     });
 
-    it('removes key when empty IBAN is saved and handles null storage safely', () => {
+    it('removes keys when empty values are saved and handles null storage safely', () => {
       const storage = createMockStorage();
       saveIbanToStorage('CH93 0076 2011 6238 5295 7', storage);
       saveIbanToStorage('   ', storage);
+      saveNpaToStorage('1000', storage);
+      saveNpaToStorage('  ', storage);
+      saveCityToStorage('Lausanne', storage);
+      saveCityToStorage('  ', storage);
+
       assert.strictEqual(getSavedIbanFromStorage(storage), '');
+      assert.strictEqual(getSavedNpaFromStorage(storage), '');
+      assert.strictEqual(getSavedCityFromStorage(storage), '');
       assert.strictEqual(getSavedIbanFromStorage(null), '');
+      assert.strictEqual(getSavedNpaFromStorage(null), '');
+      assert.strictEqual(getSavedCityFromStorage(null), '');
       assert.doesNotThrow(() => saveIbanToStorage('CH930000', null));
+      assert.doesNotThrow(() => saveNpaToStorage('1000', null));
+      assert.doesNotThrow(() => saveCityToStorage('Lausanne', null));
     });
   });
 });

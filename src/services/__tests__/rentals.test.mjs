@@ -5,6 +5,8 @@ import {
   isExemptFromEmailVerification,
 } from '../authHelpers.ts';
 import {
+  RENTAL_ROOMS,
+  isValidRentalRoom,
   generateRentalId,
   calculateRentalStats,
   filterRentals,
@@ -163,18 +165,43 @@ describe('Locations de locaux — Statistiques, Filtres & Validation', () => {
     assert.equal(byRoom.length, 2);
   });
 
-  test('validateRentalInput valide les champs obligatoires', () => {
-    const valid = validateRentalInput({
+  test('RENTAL_ROOMS propose exactement 2 locaux : avec et sans cuisine', () => {
+    assert.deepEqual(RENTAL_ROOMS, ['Local avec cuisine', 'Local sans cuisine']);
+    assert.equal(isValidRentalRoom('Local avec cuisine'), true);
+    assert.equal(isValidRentalRoom('Local sans cuisine'), true);
+    assert.equal(isValidRentalRoom('Grande salle'), false);
+    assert.equal(isValidRentalRoom(''), false);
+  });
+
+  test('validateRentalInput valide les champs obligatoires et restreint aux 2 locaux autorisés', () => {
+    const validWithKitchen = validateRentalInput({
+      roomName: 'Local avec cuisine',
+      renterName: 'Dupont',
+      startDate: '2026-06-01',
+      amount: 120,
+    });
+    assert.equal(validWithKitchen.valid, true);
+    assert.equal(validWithKitchen.error, null);
+
+    const validWithoutKitchen = validateRentalInput({
+      roomName: 'Local sans cuisine',
+      renterName: 'Dupont',
+      startDate: '2026-06-01',
+      amount: 90,
+    });
+    assert.equal(validWithoutKitchen.valid, true);
+    assert.equal(validWithoutKitchen.error, null);
+
+    const invalidRoom = validateRentalInput({
       roomName: 'Grande salle',
       renterName: 'Dupont',
       startDate: '2026-06-01',
       amount: 120,
     });
-    assert.equal(valid.valid, true);
-    assert.equal(valid.error, null);
+    assert.equal(invalidRoom.valid, false);
 
     const missingName = validateRentalInput({
-      roomName: 'Grande salle',
+      roomName: 'Local avec cuisine',
       renterName: '',
       startDate: '2026-06-01',
       amount: 120,
@@ -182,7 +209,7 @@ describe('Locations de locaux — Statistiques, Filtres & Validation', () => {
     assert.equal(missingName.valid, false);
 
     const invalidAmount = validateRentalInput({
-      roomName: 'Grande salle',
+      roomName: 'Local sans cuisine',
       renterName: 'Dupont',
       startDate: '2026-06-01',
       amount: 0,

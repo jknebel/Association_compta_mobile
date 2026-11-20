@@ -177,6 +177,8 @@ export const uploadVerifiedReceipt = async (params: {
       submittedByName: submitterFullName,
       submittedByEmail: userProfile.email,
       reimbursementIban: verifiedPayload.reimbursementIban,
+      reimbursementNpa: verifiedPayload.reimbursementNpa,
+      reimbursementCity: verifiedPayload.reimbursementCity,
     });
 
     saveSubmittedReceiptLocally({
@@ -221,6 +223,8 @@ export const uploadVerifiedReceipt = async (params: {
         submittedByName: submitterFullName,
         submittedByEmail: userProfile.email,
         reimbursementIban: verifiedPayload.reimbursementIban,
+        reimbursementNpa: verifiedPayload.reimbursementNpa,
+        reimbursementCity: verifiedPayload.reimbursementCity,
       });
 
       const receiptRef = doc(
@@ -286,6 +290,8 @@ export const uploadVerifiedReceipt = async (params: {
     submittedByName: submitterFullName,
     submittedByEmail: userProfile.email,
     reimbursementIban: verifiedPayload.reimbursementIban,
+    reimbursementNpa: verifiedPayload.reimbursementNpa,
+    reimbursementCity: verifiedPayload.reimbursementCity,
   });
 
   enqueueOfflineReceipt({

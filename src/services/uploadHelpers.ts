@@ -22,6 +22,8 @@ export interface BuildReceiptDocumentParams {
   submittedByName: string;
   submittedByEmail: string;
   reimbursementIban?: string | null;
+  reimbursementNpa?: string | null;
+  reimbursementCity?: string | null;
 }
 
 export interface QueuedOfflineReceipt {
@@ -140,6 +142,10 @@ export const buildReceiptDocument = (params: BuildReceiptDocumentParams): Receip
     typeof params.description === 'string' ? params.description.trim() : '';
   const cleanIban =
     typeof params.reimbursementIban === 'string' ? params.reimbursementIban.trim() : '';
+  const cleanNpa =
+    typeof params.reimbursementNpa === 'string' ? params.reimbursementNpa.trim() : '';
+  const cleanCity =
+    typeof params.reimbursementCity === 'string' ? params.reimbursementCity.trim() : '';
 
   const docObj: Receipt = {
     id: params.receiptId.trim(),
@@ -162,6 +168,12 @@ export const buildReceiptDocument = (params: BuildReceiptDocumentParams): Receip
     docObj.reimbursementStatus = 'PENDING' as ReimbursementStatus;
     if (cleanIban) {
       docObj.reimbursementIban = cleanIban;
+    }
+    if (cleanNpa) {
+      docObj.reimbursementNpa = cleanNpa;
+    }
+    if (cleanCity) {
+      docObj.reimbursementCity = cleanCity;
     }
   }
 

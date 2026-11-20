@@ -49,6 +49,8 @@ export interface Receipt {
   submittedByName?: string;        // Nom complet du déposant
   submittedByEmail?: string;       // Email du déposant
   reimbursementIban?: string;      // IBAN pour le remboursement (si expenseType === 'REIMBURSEMENT')
+  reimbursementNpa?: string;       // NPA (code postal) pour le paiement bancaire (si expenseType === 'REIMBURSEMENT')
+  reimbursementCity?: string;      // Ville pour le paiement bancaire (si expenseType === 'REIMBURSEMENT')
   reimbursementStatus?: ReimbursementStatus;
 
   // Transfert inter-comptabilités (Ticket WEB-03)
