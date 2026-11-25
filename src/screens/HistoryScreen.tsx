@@ -23,6 +23,7 @@ import {
   syncPendingOfflineReceipts,
   deleteReceiptItem,
 } from '../services/receiptUploadService';
+import { sanitizeReceiptUrl } from '../services/urlSecurity';
 
 const getStatusBadgeClasses = (statusKey: HistoryStatusKey): string => {
   switch (statusKey) {
@@ -251,6 +252,7 @@ export const HistoryScreen: React.FC = () => {
               item.receipt.description ||
               item.receipt.fileName ||
               'Justificatif';
+            const safeReceiptUrl = sanitizeReceiptUrl(item.receipt.url);
 
             return (
               <div
@@ -258,26 +260,37 @@ export const HistoryScreen: React.FC = () => {
                 className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-3.5 shadow-md transition-colors flex items-center gap-3.5"
               >
                 {/* Miniature Photo ou icône Facture PDF */}
-                <a
-                  href={item.receipt.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Ouvrir le justificatif"
-                  className="w-14 h-14 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center group relative"
-                >
-                  {item.isPdf ? (
-                    <div className="flex flex-col items-center justify-center text-amber-400">
-                      <FileText size={22} />
-                      <span className="text-[9px] font-bold uppercase mt-0.5">PDF</span>
-                    </div>
-                  ) : (
-                    <img
-                      src={item.receipt.url}
-                      alt={title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    />
-                  )}
-                </a>
+                {safeReceiptUrl ? (
+                  <a
+                    href={safeReceiptUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    referrerPolicy="no-referrer"
+                    title="Ouvrir le justificatif"
+                    className="w-14 h-14 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center group relative"
+                  >
+                    {item.isPdf ? (
+                      <div className="flex flex-col items-center justify-center text-amber-400">
+                        <FileText size={22} />
+                        <span className="text-[9px] font-bold uppercase mt-0.5">PDF</span>
+                      </div>
+                    ) : (
+                      <img
+                        src={safeReceiptUrl}
+                        referrerPolicy="no-referrer"
+                        alt={title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                    )}
+                  </a>
+                ) : (
+                  <div
+                    title="Justificatif hors ligne ou URL non autorisée"
+                    className="w-14 h-14 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center text-slate-500"
+                  >
+                    <FileText size={22} />
+                  </div>
+                )}
 
                 {/* Informations centrales */}
                 <div className="flex-1 min-w-0 space-y-1">
@@ -320,15 +333,18 @@ export const HistoryScreen: React.FC = () => {
                         {item.statusLabel}
                       </span>
 
-                      <a
-                        href={item.receipt.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label="Voir le document"
-                        className="p-1 text-slate-400 hover:text-blue-400 transition-colors"
-                      >
-                        <ExternalLink size={13} />
-                      </a>
+                      {safeReceiptUrl && (
+                        <a
+                          href={safeReceiptUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          referrerPolicy="no-referrer"
+                          aria-label="Voir le document"
+                          className="p-1 text-slate-400 hover:text-blue-400 transition-colors"
+                        >
+                          <ExternalLink size={13} />
+                        </a>
+                      )}
 
                       <button
                         type="button"
