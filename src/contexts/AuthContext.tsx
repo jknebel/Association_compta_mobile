@@ -26,6 +26,11 @@ import {
   getSelectedComptaIdFromStorage,
   saveSelectedComptaIdToStorage,
 } from '../services/mobileOrganizationService';
+import {
+  canUseUnconfiguredDemoMode,
+  PROD_FIREBASE_MISSING_ERROR,
+  purgeSensitiveLocalStorage,
+} from '../services/sessionSecurity';
 
 const LOCAL_SESSION_STORAGE_KEY = 'asso_compta_mobile_session_v1';
 
@@ -128,8 +133,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [userProfile, loadAuthorizedComptasForUser]);
 
   useEffect(() => {
-    // Mode développement local hors-ligne si les variables VITE_FIREBASE_* ne sont pas renseignées
+    // Mode développement local hors-ligne autorisé uniquement hors production
     if (!isFirebaseConfigured || !auth) {
+      if (!canUseUnconfiguredDemoMode(isFirebaseConfigured, Boolean(import.meta.env.PROD))) {
+        setError(PROD_FIREBASE_MISSING_ERROR);
+        setLoading(false);
+        return;
+      }
       try {
         const saved = localStorage.getItem(LOCAL_SESSION_STORAGE_KEY);
         if (saved) {
@@ -258,6 +268,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     if (!isFirebaseConfigured || !auth) {
+      if (!canUseUnconfiguredDemoMode(isFirebaseConfigured, Boolean(import.meta.env.PROD))) {
+        setError(PROD_FIREBASE_MISSING_ERROR);
+        throw new Error(PROD_FIREBASE_MISSING_ERROR);
+      }
       const fallbackProfile = buildMobileUserProfile(
         {
           uid: `local-${validation.normalizedEmail}`,
@@ -290,6 +304,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     if (!isFirebaseConfigured || !auth) {
+      if (!canUseUnconfiguredDemoMode(isFirebaseConfigured, Boolean(import.meta.env.PROD))) {
+        setError(PROD_FIREBASE_MISSING_ERROR);
+        throw new Error(PROD_FIREBASE_MISSING_ERROR);
+      }
       return;
     }
 
@@ -306,6 +324,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const loginWithGoogle = async (): Promise<void> => {
     setError(null);
     if (!isFirebaseConfigured || !auth) {
+      if (!canUseUnconfiguredDemoMode(isFirebaseConfigured, Boolean(import.meta.env.PROD))) {
+        setError(PROD_FIREBASE_MISSING_ERROR);
+        throw new Error(PROD_FIREBASE_MISSING_ERROR);
+      }
       const fallbackProfile = buildMobileUserProfile(
         {
           uid: 'local-google-user',
@@ -354,14 +376,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async (): Promise<void> => {
     setError(null);
-    localStorage.removeItem(LOCAL_SESSION_STORAGE_KEY);
-    if (isFirebaseConfigured && auth) {
-      await signOut(auth);
+    const uidsToPurge = [userProfile?.uid, user?.uid].filter((x): x is string => Boolean(x));
+    try {
+      if (isFirebaseConfigured && auth) {
+        await signOut(auth);
+      }
+    } finally {
+      purgeSensitiveLocalStorage(
+        typeof localStorage !== 'undefined' ? localStorage : null,
+        uidsToPurge
+      );
+      setUser(null);
+      setUserProfile(null);
+      setAuthorizedComptas([]);
+      setSelectedCompta(null);
     }
-    setUser(null);
-    setUserProfile(null);
-    setAuthorizedComptas([]);
-    setSelectedCompta(null);
   };
 
   return (

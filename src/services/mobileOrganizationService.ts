@@ -2,6 +2,7 @@ import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../config/firebase';
 import { ComptaRole, type AuthorizedComptabilite } from '../types/receipt';
 import { normalizeEmail } from './authHelpers';
+import { canUseUnconfiguredDemoMode } from './sessionSecurity';
 import {
   type OrganizationSnapshotInput,
   type RawComptaDoc,
@@ -44,8 +45,11 @@ export const getUserAuthorizedComptabilites = async (
     return [];
   }
 
-  // Mode développement local si Firebase n'est pas configuré
+  // Mode développement local uniquement si Firebase n'est pas configuré
   if (!isFirebaseConfigured || !db) {
+    if (!canUseUnconfiguredDemoMode(isFirebaseConfigured, Boolean(import.meta.env.PROD))) {
+      return [];
+    }
     if (normalizedEmail.includes('noaccess') || normalizedEmail.includes('sansacces')) {
       return [];
     }

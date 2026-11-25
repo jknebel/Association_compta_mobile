@@ -23,6 +23,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import type { AuthorizedComptabilite } from '../types/receipt';
+import { useAuth } from '../contexts/AuthContext';
 import {
   getComptaRoleLabel,
   groupAuthorizedComptas,
@@ -88,9 +89,24 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
     extractionResult?.merchantName || ''
   );
   const [description, setDescription] = useState<string>('');
-  const [ibanInput, setIbanInput] = useState<string>(() => getSavedIbanFromStorage());
-  const [npaInput, setNpaInput] = useState<string>(() => getSavedNpaFromStorage());
-  const [cityInput, setCityInput] = useState<string>(() => getSavedCityFromStorage());
+  const { userProfile } = useAuth();
+  const storageUid = userProfile?.uid;
+
+  const [ibanInput, setIbanInput] = useState<string>(() =>
+    getSavedIbanFromStorage(undefined, storageUid)
+  );
+  const [npaInput, setNpaInput] = useState<string>(() =>
+    getSavedNpaFromStorage(undefined, storageUid)
+  );
+  const [cityInput, setCityInput] = useState<string>(() =>
+    getSavedCityFromStorage(undefined, storageUid)
+  );
+
+  useEffect(() => {
+    setIbanInput(getSavedIbanFromStorage(undefined, storageUid));
+    setNpaInput(getSavedNpaFromStorage(undefined, storageUid));
+    setCityInput(getSavedCityFromStorage(undefined, storageUid));
+  }, [storageUid]);
   const [bankDetailsSavedNotice, setBankDetailsSavedNotice] = useState<boolean>(false);
   const [touchedIban, setTouchedIban] = useState<boolean>(false);
   const [touchedNpa, setTouchedNpa] = useState<boolean>(false);
@@ -134,7 +150,7 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
     setTouchedIban(true);
     const formatted = normalizeIban(ibanInput);
     setIbanInput(formatted);
-    saveIbanToStorage(formatted);
+    saveIbanToStorage(formatted, undefined, storageUid);
     if (formatted) {
       showBankDetailsSavedNotice();
     }
@@ -144,7 +160,7 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
     setTouchedNpa(true);
     const formatted = normalizeNpa(npaInput);
     setNpaInput(formatted);
-    saveNpaToStorage(formatted);
+    saveNpaToStorage(formatted, undefined, storageUid);
     if (formatted) {
       showBankDetailsSavedNotice();
     }
@@ -154,7 +170,7 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
     setTouchedCity(true);
     const formatted = normalizeCity(cityInput);
     setCityInput(formatted);
-    saveCityToStorage(formatted);
+    saveCityToStorage(formatted, undefined, storageUid);
     if (formatted) {
       showBankDetailsSavedNotice();
     }
@@ -170,13 +186,13 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
 
     if (expenseType === 'REIMBURSEMENT') {
       if (ibanInput.trim()) {
-        saveIbanToStorage(ibanInput);
+        saveIbanToStorage(ibanInput, undefined, storageUid);
       }
       if (npaInput.trim()) {
-        saveNpaToStorage(npaInput);
+        saveNpaToStorage(npaInput, undefined, storageUid);
       }
       if (cityInput.trim()) {
-        saveCityToStorage(cityInput);
+        saveCityToStorage(cityInput, undefined, storageUid);
       }
     }
 
