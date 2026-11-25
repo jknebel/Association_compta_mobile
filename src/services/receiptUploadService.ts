@@ -1,6 +1,7 @@
 import { collection, doc, getDocs, query, setDoc, where, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, isFirebaseConfigured } from '../config/firebase';
+import { auth, db, storage, isFirebaseConfigured } from '../config/firebase';
+import { filterOfflineQueueForUser } from './sessionSecurity';
 import type { AuthorizedComptabilite, Receipt } from '../types/receipt';
 import type { MobileUserProfile } from './authHelpers';
 import {
@@ -330,13 +331,16 @@ export const uploadVerifiedReceipt = async (params: {
 /**
  * Synchronise automatiquement les justificatifs en attente dans la file hors-ligne dès le retour du réseau.
  */
-export const syncPendingOfflineReceipts = async (): Promise<number> => {
+export const syncPendingOfflineReceipts = async (explicitUid?: string): Promise<number> => {
   if (!isFirebaseConfigured || !db || !storage) return 0;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return 0;
 
+  const activeUid = (explicitUid ?? auth?.currentUser?.uid ?? '').trim();
+  if (!activeUid) return 0;
+
   const firestoreDb = db;
   const firebaseStorage = storage;
-  const queue = getOfflineReceiptQueue();
+  const queue = filterOfflineQueueForUser(getOfflineReceiptQueue(), activeUid);
   if (queue.length === 0) return 0;
 
   let syncedCount = 0;

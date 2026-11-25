@@ -1,3 +1,8 @@
+const scopeStorageKey = (baseKey: string, uid?: string | null): string => {
+  const cleanUid = typeof uid === 'string' ? uid.trim() : '';
+  return cleanUid ? `${baseKey}_${cleanUid}` : baseKey;
+};
+
 export type ExpenseTypeChoice = 'DEBIT_CARD' | 'REIMBURSEMENT';
 
 export const SAVED_IBAN_STORAGE_KEY = 'asso_compta_saved_iban_v1';
@@ -260,9 +265,12 @@ export const validateVerifiedReceiptForm = (
 };
 
 /**
- * Récupère l'IBAN mémorisé localement sur l'appareil (localStorage).
+ * Récupère l'IBAN mémorisé localement sur l'appareil (localStorage), isolé par uid si fourni.
  */
-export const getSavedIbanFromStorage = (storage?: Storage | null): string => {
+export const getSavedIbanFromStorage = (
+  storage?: Storage | null,
+  uid?: string | null
+): string => {
   try {
     const s =
       storage !== undefined
@@ -271,7 +279,7 @@ export const getSavedIbanFromStorage = (storage?: Storage | null): string => {
         ? localStorage
         : null;
     if (!s) return '';
-    return normalizeIban(s.getItem(SAVED_IBAN_STORAGE_KEY));
+    return normalizeIban(s.getItem(scopeStorageKey(SAVED_IBAN_STORAGE_KEY, uid)));
   } catch {
     return '';
   }
@@ -280,7 +288,11 @@ export const getSavedIbanFromStorage = (storage?: Storage | null): string => {
 /**
  * Mémorise l'IBAN localement sur l'appareil pour éviter la re-saisie lors des prochains remboursements.
  */
-export const saveIbanToStorage = (iban: string, storage?: Storage | null): void => {
+export const saveIbanToStorage = (
+  iban: string,
+  storage?: Storage | null,
+  uid?: string | null
+): void => {
   try {
     const s =
       storage !== undefined
@@ -289,11 +301,12 @@ export const saveIbanToStorage = (iban: string, storage?: Storage | null): void 
         ? localStorage
         : null;
     if (!s) return;
+    const key = scopeStorageKey(SAVED_IBAN_STORAGE_KEY, uid);
     const normalized = normalizeIban(iban);
     if (normalized) {
-      s.setItem(SAVED_IBAN_STORAGE_KEY, normalized);
+      s.setItem(key, normalized);
     } else {
-      s.removeItem(SAVED_IBAN_STORAGE_KEY);
+      s.removeItem(key);
     }
   } catch {
     // Ignorer les erreurs de stockage privé
@@ -301,9 +314,12 @@ export const saveIbanToStorage = (iban: string, storage?: Storage | null): void 
 };
 
 /**
- * Récupère le NPA mémorisé localement sur l'appareil (localStorage).
+ * Récupère le NPA mémorisé localement sur l'appareil (localStorage), isolé par uid si fourni.
  */
-export const getSavedNpaFromStorage = (storage?: Storage | null): string => {
+export const getSavedNpaFromStorage = (
+  storage?: Storage | null,
+  uid?: string | null
+): string => {
   try {
     const s =
       storage !== undefined
@@ -312,7 +328,7 @@ export const getSavedNpaFromStorage = (storage?: Storage | null): string => {
         ? localStorage
         : null;
     if (!s) return '';
-    return normalizeNpa(s.getItem(SAVED_NPA_STORAGE_KEY));
+    return normalizeNpa(s.getItem(scopeStorageKey(SAVED_NPA_STORAGE_KEY, uid)));
   } catch {
     return '';
   }
@@ -321,7 +337,11 @@ export const getSavedNpaFromStorage = (storage?: Storage | null): string => {
 /**
  * Mémorise le NPA localement sur l'appareil pour éviter la re-saisie lors des prochains remboursements.
  */
-export const saveNpaToStorage = (npa: string, storage?: Storage | null): void => {
+export const saveNpaToStorage = (
+  npa: string,
+  storage?: Storage | null,
+  uid?: string | null
+): void => {
   try {
     const s =
       storage !== undefined
@@ -330,11 +350,12 @@ export const saveNpaToStorage = (npa: string, storage?: Storage | null): void =>
         ? localStorage
         : null;
     if (!s) return;
+    const key = scopeStorageKey(SAVED_NPA_STORAGE_KEY, uid);
     const normalized = normalizeNpa(npa);
     if (normalized) {
-      s.setItem(SAVED_NPA_STORAGE_KEY, normalized);
+      s.setItem(key, normalized);
     } else {
-      s.removeItem(SAVED_NPA_STORAGE_KEY);
+      s.removeItem(key);
     }
   } catch {
     // Ignorer les erreurs de stockage privé
@@ -342,9 +363,12 @@ export const saveNpaToStorage = (npa: string, storage?: Storage | null): void =>
 };
 
 /**
- * Récupère la ville mémorisée localement sur l'appareil (localStorage).
+ * Récupère la ville mémorisée localement sur l'appareil (localStorage), isolée par uid si fourni.
  */
-export const getSavedCityFromStorage = (storage?: Storage | null): string => {
+export const getSavedCityFromStorage = (
+  storage?: Storage | null,
+  uid?: string | null
+): string => {
   try {
     const s =
       storage !== undefined
@@ -353,7 +377,7 @@ export const getSavedCityFromStorage = (storage?: Storage | null): string => {
         ? localStorage
         : null;
     if (!s) return '';
-    return normalizeCity(s.getItem(SAVED_CITY_STORAGE_KEY));
+    return normalizeCity(s.getItem(scopeStorageKey(SAVED_CITY_STORAGE_KEY, uid)));
   } catch {
     return '';
   }
@@ -362,7 +386,11 @@ export const getSavedCityFromStorage = (storage?: Storage | null): string => {
 /**
  * Mémorise la ville localement sur l'appareil pour éviter la re-saisie lors des prochains remboursements.
  */
-export const saveCityToStorage = (city: string, storage?: Storage | null): void => {
+export const saveCityToStorage = (
+  city: string,
+  storage?: Storage | null,
+  uid?: string | null
+): void => {
   try {
     const s =
       storage !== undefined
@@ -371,11 +399,12 @@ export const saveCityToStorage = (city: string, storage?: Storage | null): void 
         ? localStorage
         : null;
     if (!s) return;
+    const key = scopeStorageKey(SAVED_CITY_STORAGE_KEY, uid);
     const normalized = normalizeCity(city);
     if (normalized) {
-      s.setItem(SAVED_CITY_STORAGE_KEY, normalized);
+      s.setItem(key, normalized);
     } else {
-      s.removeItem(SAVED_CITY_STORAGE_KEY);
+      s.removeItem(key);
     }
   } catch {
     // Ignorer les erreurs de stockage privé

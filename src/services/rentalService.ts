@@ -12,6 +12,7 @@ import {
 import { db, isFirebaseConfigured } from '../config/firebase';
 import type { Rental, NewRentalInput, RentalStatus } from '../types/rental';
 import type { MobileUserProfile } from './authHelpers';
+import { canUseUnconfiguredDemoMode, PROD_FIREBASE_MISSING_ERROR } from './sessionSecurity';
 
 const LOCAL_RENTALS_STORAGE_KEY = 'asso_compta_local_rentals_v1';
 
@@ -75,8 +76,13 @@ export const subscribeRentals = (
   const cleanOrg = (orgId || 'TDGL').trim();
   const cleanCompta = (comptaId || 'default').trim();
 
-  // Mode hors-ligne / développement local
+  // Mode hors-ligne / développement local uniquement hors production
   if (!isFirebaseConfigured || !db) {
+    if (!canUseUnconfiguredDemoMode(isFirebaseConfigured, Boolean(import.meta.env.PROD))) {
+      onUpdate([]);
+      if (onError) onError(new Error(PROD_FIREBASE_MISSING_ERROR));
+      return () => {};
+    }
     const cached = getCachedRentals(cleanCompta);
     onUpdate(cached);
     return () => {};
@@ -173,6 +179,9 @@ export const createRental = async (
   };
 
   if (!isFirebaseConfigured || !db) {
+    if (!canUseUnconfiguredDemoMode(isFirebaseConfigured, Boolean(import.meta.env.PROD))) {
+      throw new Error(PROD_FIREBASE_MISSING_ERROR);
+    }
     const list = getCachedRentals();
     const updated = [newRental, ...list];
     saveCachedRentals(updated);
