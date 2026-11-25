@@ -30,10 +30,12 @@ jobs:
       - name: Run Unit Tests
         run: node --experimental-transform-types --test src/services/__tests__/*.test.mjs
 
-      - name: Run SEC-09 & SEC-10 Mutation Suites
+      - name: Run Mutation Suites
         run: |
+          node src/services/__tests__/mutation.mob05.mjs
           node src/services/__tests__/mutation.sec09.mjs
           node src/services/__tests__/mutation.sec10.mjs
+          node src/services/__tests__/mutation.sec11.mjs
 
       - name: Typecheck
         run: npm run typecheck

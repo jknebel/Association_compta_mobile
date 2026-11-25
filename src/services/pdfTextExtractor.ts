@@ -1,3 +1,19 @@
+export const MAX_PDF_INPUT_BYTES = 15 * 1024 * 1024;
+export const MAX_SINGLE_STREAM_DECOMPRESSED_BYTES = 2 * 1024 * 1024;
+export const MAX_TOTAL_PDF_DECOMPRESSED_BYTES = 10 * 1024 * 1024;
+export const PDF_DECOMPRESSION_LIMIT_EXCEEDED = 'PDF_DECOMPRESSION_LIMIT_EXCEEDED';
+
+export class PdfDecompressionLimitError extends Error {
+  constructor(message: string = PDF_DECOMPRESSION_LIMIT_EXCEEDED) {
+    super(message);
+    this.name = 'PdfDecompressionLimitError';
+  }
+}
+
+export const isPdfDecompressionLimitError = (err: unknown): boolean =>
+  err instanceof PdfDecompressionLimitError ||
+  (err instanceof Error && err.message.startsWith(PDF_DECOMPRESSION_LIMIT_EXCEEDED));
+
 /**
  * Décode les séquences d'échappement d'une chaîne littérale PDF `(...)`
  * (ex: `\n`, `\r`, `\t`, `\(`, `\)`, `\\` et séquences octales `\ddd`).
@@ -58,31 +74,78 @@ export const extractTextOperatorsFromPdfChunk = (chunkText: string): string => {
     .trim();
 };
 
+export interface InflatedPdfStreamResult {
+  text: string;
+  byteLength: number;
+}
+
 /**
- * Tente de décompresser un flux binaire FlateDecode via l'API Web standard `DecompressionStream`.
+ * Décompresse un flux binaire FlateDecode en lecture bornée (streaming chunk-par-chunk)
+ * pour bloquer les zip-bombs avant allocation mémoire complète.
  */
-const tryInflatePdfStream = async (bytes: Uint8Array): Promise<string | null> => {
+export const inflatePdfStreamBounded = async (
+  bytes: Uint8Array,
+  maxBytes: number = MAX_SINGLE_STREAM_DECOMPRESSED_BYTES
+): Promise<InflatedPdfStreamResult | null> => {
+  if (maxBytes < 0) {
+    throw new PdfDecompressionLimitError(
+      `${PDF_DECOMPRESSION_LIMIT_EXCEEDED}: budget négatif`
+    );
+  }
   if (typeof DecompressionStream === 'undefined' || bytes.byteLength < 2) {
     return null;
   }
 
   for (const format of ['deflate', 'deflate-raw'] as const) {
+    const ds = new DecompressionStream(format);
+    const writer = ds.writable.getWriter();
+    const reader = ds.readable.getReader();
+    const writePromise = writer
+      .write(new Uint8Array(bytes))
+      .then(() => writer.close())
+      .catch(() => {});
+
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+
     try {
-      const ds = new DecompressionStream(format);
-      const writer = ds.writable.getWriter();
-      const writePromise = writer
-        .write(new Uint8Array(bytes))
-        .then(() => writer.close())
-        .catch(() => {});
-      const response = new Response(ds.readable);
-      const arrayBuffer = await response.arrayBuffer();
-      await writePromise;
-      const decoded = new TextDecoder('latin1').decode(arrayBuffer);
-      if (decoded && decoded.trim()) {
-        return decoded;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value || value.byteLength === 0) continue;
+
+        totalBytes += value.byteLength;
+        if (totalBytes > maxBytes) {
+          const limitErr = new PdfDecompressionLimitError(
+            `${PDF_DECOMPRESSION_LIMIT_EXCEEDED}: flux décompressé > ${maxBytes} octets`
+          );
+          await reader.cancel().catch(() => {});
+          void writer.abort(limitErr).catch(() => {});
+          throw limitErr;
+        }
+        chunks.push(value);
       }
-    } catch {
-      // Essayer le format suivant
+
+      await writePromise;
+      const merged = new Uint8Array(totalBytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+
+      const decoded = new TextDecoder('latin1').decode(merged);
+      if (decoded && decoded.trim()) {
+        return { text: decoded, byteLength: totalBytes };
+      }
+    } catch (err) {
+      await reader.cancel().catch(() => {});
+      void writer.abort().catch(() => {});
+      await writePromise;
+      if (isPdfDecompressionLimitError(err)) {
+        throw err;
+      }
+      // Essayer le format suivant si le flux n'est pas valide dans ce format
     }
   }
 
@@ -91,13 +154,19 @@ const tryInflatePdfStream = async (bytes: Uint8Array): Promise<string | null> =>
 
 /**
  * Extrait le texte natif d'un fichier PDF à partir de son `ArrayBuffer` ou `Uint8Array`.
- * Supporte les flux PDF non compressés ainsi que les flux compressés `FlateDecode`.
+ * Supporte les flux PDF non compressés ainsi que les flux compressés `FlateDecode`,
+ * tout en appliquant des bornes strictes contre les bombes de décompression.
  */
 export const extractTextFromPdfBuffer = async (
   buffer: ArrayBuffer | Uint8Array
 ): Promise<string> => {
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   if (bytes.byteLength === 0) return '';
+  if (bytes.byteLength > MAX_PDF_INPUT_BYTES) {
+    throw new PdfDecompressionLimitError(
+      `${PDF_DECOMPRESSION_LIMIT_EXCEEDED}: PDF brut > ${MAX_PDF_INPUT_BYTES} octets`
+    );
+  }
 
   const rawLatin1 = new TextDecoder('latin1').decode(bytes);
   const extractedSections: string[] = [];
@@ -112,6 +181,7 @@ export const extractTextFromPdfBuffer = async (
   const streamRegex = /stream\r?\n/g;
   let match: RegExpExecArray | null;
   let streamCount = 0;
+  let totalDecompressedBytes = 0;
 
   while ((match = streamRegex.exec(rawLatin1)) !== null && streamCount < 40) {
     streamCount++;
@@ -129,11 +199,14 @@ export const extractTextFromPdfBuffer = async (
     if (rawLatin1[streamEnd - 1] === '\n') streamEnd--;
     if (rawLatin1[streamEnd - 1] === '\r') streamEnd--;
 
-    if (streamEnd > startOffset && streamEnd - startOffset <= 2 * 1024 * 1024) {
+    if (streamEnd > startOffset && streamEnd - startOffset <= MAX_SINGLE_STREAM_DECOMPRESSED_BYTES) {
+      const remainingTotal = MAX_TOTAL_PDF_DECOMPRESSED_BYTES - totalDecompressedBytes;
+      const streamBudget = Math.min(MAX_SINGLE_STREAM_DECOMPRESSED_BYTES, remainingTotal);
       const subBytes = bytes.subarray(startOffset, streamEnd);
-      const inflated = await tryInflatePdfStream(subBytes);
+      const inflated = await inflatePdfStreamBounded(subBytes, streamBudget);
       if (inflated) {
-        const textFromStream = extractTextOperatorsFromPdfChunk(inflated);
+        totalDecompressedBytes += inflated.byteLength;
+        const textFromStream = extractTextOperatorsFromPdfChunk(inflated.text);
         if (textFromStream) {
           extractedSections.push(textFromStream);
         }
