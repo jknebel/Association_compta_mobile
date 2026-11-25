@@ -1,0 +1,48 @@
+name: Security CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  unit-mutation-and-build:
+    name: Unit Tests, Mutations, Typecheck & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Unit Tests
+        run: node --experimental-transform-types --test src/services/__tests__/*.test.mjs
+
+      - name: Run SEC-09 Mutation Suite
+        run: node src/services/__tests__/mutation.sec09.mjs
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build PWA
+        run: npm run build
+        env:
+          VITE_API_URL: https://example.invalid
+          VITE_FIREBASE_API_KEY: dummy
+          VITE_FIREBASE_AUTH_DOMAIN: dummy.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: demo-sec09
+          VITE_FIREBASE_STORAGE_BUCKET: demo-sec09.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
+          VITE_FIREBASE_APP_ID: 1:000000000000:web:dummy

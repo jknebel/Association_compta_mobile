@@ -84,49 +84,66 @@ export const getUserAuthorizedComptabilites = async (
       adminEmail: typeof orgData.adminEmail === 'string' ? orgData.adminEmail : null,
     };
 
-    const [membersSnap, comptasSnap] = await Promise.all([
-      getDocs(collection(firestoreDb, 'organizations', orgDoc.id, 'members')),
-      getDocs(collection(firestoreDb, 'organizations', orgDoc.id, 'comptabilites')),
+    const candidateIds = Array.from(new Set([cleanUid, normalizedEmail].filter(Boolean)));
+    const [memberSnaps, comptasSnap] = await Promise.all([
+      Promise.all(
+        candidateIds.map(async (memberId) => {
+          try {
+            return await getDoc(doc(firestoreDb, 'organizations', orgDoc.id, 'members', memberId));
+          } catch {
+            return null;
+          }
+        })
+      ),
+      getDocs(collection(firestoreDb, 'organizations', orgDoc.id, 'comptabilites')).catch(() => null),
     ]);
 
-    const rawMembers: RawMemberDoc[] = membersSnap.docs.map((mDoc) => {
-      const mData = mDoc.data() as Record<string, unknown>;
-      return {
-        id: mDoc.id,
-        uid: typeof mData.uid === 'string' ? mData.uid : null,
-        email: typeof mData.email === 'string' ? mData.email : null,
-        role: typeof mData.role === 'string' ? mData.role : null,
-        status: typeof mData.status === 'string' ? mData.status : null,
-        comptaAccess:
-          mData.comptaAccess && typeof mData.comptaAccess === 'object'
-            ? (mData.comptaAccess as Record<string, unknown>)
-            : null,
-      };
-    });
+    const rawMembers: RawMemberDoc[] = memberSnaps
+      .filter((mDoc): mDoc is NonNullable<typeof mDoc> => Boolean(mDoc && mDoc.exists()))
+      .map((mDoc) => {
+        const mData = mDoc.data() as Record<string, unknown>;
+        return {
+          id: mDoc.id,
+          uid: typeof mData.uid === 'string' ? mData.uid : null,
+          email: typeof mData.email === 'string' ? mData.email : null,
+          role: typeof mData.role === 'string' ? mData.role : null,
+          status: typeof mData.status === 'string' ? mData.status : null,
+          comptaAccess:
+            mData.comptaAccess && typeof mData.comptaAccess === 'object'
+              ? (mData.comptaAccess as Record<string, unknown>)
+              : null,
+        };
+      });
 
+    const comptaDocs = comptasSnap ? comptasSnap.docs : [];
     const rawComptas: RawComptaDoc[] = await Promise.all(
-      comptasSnap.docs.map(async (cDoc) => {
+      comptaDocs.map(async (cDoc) => {
         const cData = cDoc.data() as Record<string, unknown>;
         const isArchived = cData.isArchived === true;
         const directMembers: RawDirectMemberDoc[] = [];
 
-        // Si la comptabilité est active et qu'on a un UID, vérifier aussi la sous-collection directe members/{uid}
-        if (!isArchived && cleanUid) {
-          try {
-            const directSnap = await getDoc(
-              doc(firestoreDb, 'organizations', orgDoc.id, 'comptabilites', cDoc.id, 'members', cleanUid)
-            );
-            if (directSnap.exists()) {
-              const dmData = directSnap.data() as Record<string, unknown>;
-              directMembers.push({
-                id: directSnap.id,
-                uid: typeof dmData.uid === 'string' ? dmData.uid : cleanUid,
-                email: typeof dmData.email === 'string' ? dmData.email : null,
-                role: typeof dmData.role === 'string' ? dmData.role : null,
-              });
-            }
-          } catch {
-            // Ignorer en cas de restriction de lecture sur une sous-collection non autorisée
+        // Si la comptabilité est active, vérifier les fiches directes members/{uid|email}
+        if (!isArchived && candidateIds.length > 0) {
+          const directSnaps = await Promise.all(
+            candidateIds.map(async (memberId) => {
+              try {
+                return await getDoc(
+                  doc(firestoreDb, 'organizations', orgDoc.id, 'comptabilites', cDoc.id, 'members', memberId)
+                );
+              } catch {
+                return null;
+              }
+            })
+          );
+          for (const directSnap of directSnaps) {
+            if (!directSnap || !directSnap.exists()) continue;
+            const dmData = directSnap.data() as Record<string, unknown>;
+            directMembers.push({
+              id: directSnap.id,
+              uid: typeof dmData.uid === 'string' ? dmData.uid : cleanUid || null,
+              email: typeof dmData.email === 'string' ? dmData.email : null,
+              role: typeof dmData.role === 'string' ? dmData.role : null,
+            });
           }
         }
 
