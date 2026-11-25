@@ -41,6 +41,7 @@ jobs:
           node src/services/__tests__/mutation.sec11.mjs
           node src/services/__tests__/mutation.sec12.mjs
           node src/services/__tests__/mutation.sec13.mjs
+          node src/services/__tests__/mutation.sec15.mjs
 
       - name: Typecheck
         run: npm run typecheck
