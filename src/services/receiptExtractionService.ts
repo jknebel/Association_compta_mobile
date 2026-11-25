@@ -14,6 +14,10 @@ import {
   type ReceiptExtractionResult,
 } from './extractionHelpers';
 import { extractTextFromPdfFile } from './pdfTextExtractor';
+import {
+  normalizeBackendBaseUrl,
+  requestBackendReceiptAnalysis,
+} from './bearerAuthHelpers';
 
 export {
   EXTRACTION_TIMEOUT_MS,
@@ -32,36 +36,20 @@ export {
 const DEFAULT_BACKEND_API_URL = 'https://assocompta-backend-vkiznjrvtq-ew.a.run.app';
 
 /**
- * Convertit un `Blob` / `File` en chaîne Base64 (sans le préfixe `data:...;base64,`).
- */
-const fileToBase64 = (file: Blob): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      const commaIdx = result.indexOf(',');
-      resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
-    };
-    reader.onerror = () => reject(new Error('Impossible de lire le fichier pour analyse.'));
-    reader.readAsDataURL(file);
-  });
-};
-
-/**
  * Récupère l'URL du backend AssoCompta configurée dans Vite, avec fallback sur l'URL de production.
  */
 const getBackendApiUrl = (): string => {
   try {
     const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
-    const configured = (env?.VITE_API_URL || '').trim();
-    return (configured || DEFAULT_BACKEND_API_URL).replace(/\/+$/, '');
+    return normalizeBackendBaseUrl(env?.VITE_API_URL, DEFAULT_BACKEND_API_URL);
   } catch {
     return DEFAULT_BACKEND_API_URL;
   }
 };
 
 /**
- * Appelle le backend sécurisé (`POST /analyze-receipt`) pour analyser une photo de ticket ou un PDF scanné.
+ * Appelle le backend sécurisé (`POST /analyze-receipt`) avec le jeton Firebase `Authorization: Bearer`
+ * pour analyser une photo de ticket ou un PDF scanné.
  * Aucune clé API Gemini n'est stockée ni exposée côté client.
  */
 const analyzeWithBackendVision = async (
@@ -72,25 +60,15 @@ const analyzeWithBackendVision = async (
   extractedAmount: number | null;
   merchantName: string | null;
 }> => {
-  const base64Data = await fileToBase64(file);
   const mimeType =
     file.type || (detectReceiptFileKind(file.type, file.name) === 'pdf' ? 'application/pdf' : 'image/jpeg');
 
-  const response = await fetch(`${backendUrl}/analyze-receipt`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ base64Data, mimeType }),
+  const data = await requestBackendReceiptAnalysis({
+    file,
+    mimeType,
+    backendUrl,
+    getIdToken: async () => (auth?.currentUser ? await auth.currentUser.getIdToken() : null),
   });
-
-  if (!response.ok) {
-    throw new Error(`Erreur backend (${response.status})`);
-  }
-
-  const data = (await response.json()) as {
-    date?: string | null;
-    amount?: number | string | null;
-    merchantName?: string | null;
-  };
 
   return {
     extractedDate: normalizeExtractedDate(data.date),
