@@ -442,17 +442,17 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
             })()}
           </div>
 
-          {/* 2. Choix du Type de dépense (Carte de Débit vs Demande de Remboursement) */}
+          {/* 2. Choix du Type de dépense (Carte de Débit vs Remboursement vs Payer la facture) */}
           <div className="space-y-2">
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
               2. Mode de paiement
             </label>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <button
                 type="button"
                 onClick={() => setExpenseType('DEBIT_CARD')}
-                className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between gap-2 ${
+                className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-2 ${
                   expenseType === 'DEBIT_CARD'
                     ? 'bg-blue-600/20 border-blue-500 text-slate-100 shadow-md shadow-blue-600/15'
                     : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -485,7 +485,7 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
               <button
                 type="button"
                 onClick={() => setExpenseType('REIMBURSEMENT')}
-                className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between gap-2 ${
+                className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-2 ${
                   expenseType === 'REIMBURSEMENT'
                     ? 'bg-emerald-600/20 border-emerald-500 text-slate-100 shadow-md shadow-emerald-600/15'
                     : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -511,6 +511,39 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
                   </div>
                   <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
                     Avancé avec mon argent personnel
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setExpenseType('INVOICE_PAYMENT')}
+                className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-2 ${
+                  expenseType === 'INVOICE_PAYMENT'
+                    ? 'bg-violet-600/20 border-violet-500 text-slate-100 shadow-md shadow-violet-600/15'
+                    : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      expenseType === 'INVOICE_PAYMENT'
+                        ? 'bg-violet-600 text-white'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <FileText size={17} />
+                  </div>
+                  {expenseType === 'INVOICE_PAYMENT' && (
+                    <CheckCircle2 size={16} className="text-violet-400" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-100">
+                    📄 Payer la facture
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                    À régler par le caissier (sans IBAN)
                   </p>
                 </div>
               </button>
@@ -634,6 +667,18 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
           </div>
 
           {/* 5. Coordonnées bancaires mémorisées : IBAN, NPA et Ville obligatoires (affichés si Demande de Remboursement) */}
+          {expenseType === 'INVOICE_PAYMENT' && (
+            <div className="bg-violet-950/30 border border-violet-500/40 rounded-xl p-3.5 text-xs text-violet-200 space-y-1">
+              <div className="font-bold text-violet-300 flex items-center gap-1.5">
+                <FileText size={14} className="text-violet-400 shrink-0" />
+                <span>Paiement direct de la facture (aucun IBAN requis)</span>
+              </div>
+              <p className="text-[11px] text-violet-200/80 leading-relaxed">
+                Le caissier recevra immédiatement un e-mail avec la photo ou le PDF de la facture pour effectuer le paiement, puis vous recevrez une confirmation dès qu&apos;elle sera marquée comme payée.
+              </p>
+            </div>
+          )}
+
           {expenseType === 'REIMBURSEMENT' && (
             <div className="bg-emerald-950/25 border border-emerald-500/30 rounded-xl p-3.5 space-y-3">
               <div className="flex items-center justify-between gap-2">

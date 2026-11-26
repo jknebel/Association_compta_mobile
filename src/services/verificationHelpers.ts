@@ -3,7 +3,7 @@ const scopeStorageKey = (baseKey: string, uid?: string | null): string => {
   return cleanUid ? `${baseKey}_${cleanUid}` : baseKey;
 };
 
-export type ExpenseTypeChoice = 'DEBIT_CARD' | 'REIMBURSEMENT';
+export type ExpenseTypeChoice = 'DEBIT_CARD' | 'REIMBURSEMENT' | 'INVOICE_PAYMENT';
 
 export const SAVED_IBAN_STORAGE_KEY = 'asso_compta_saved_iban_v1';
 export const SAVED_NPA_STORAGE_KEY = 'asso_compta_saved_npa_v1';
@@ -185,10 +185,12 @@ export const validateVerifiedReceiptForm = (
 
   const rawType = typeof input?.expenseType === 'string' ? input.expenseType.trim() : '';
   const validExpenseType: ExpenseTypeChoice | null =
-    rawType === 'DEBIT_CARD' || rawType === 'REIMBURSEMENT' ? rawType : null;
+    rawType === 'DEBIT_CARD' || rawType === 'REIMBURSEMENT' || rawType === 'INVOICE_PAYMENT'
+      ? rawType
+      : null;
   if (!validExpenseType) {
     errors.expenseType =
-      'Veuillez choisir le type de dépense (Carte de débit ou Demande de remboursement).';
+      'Veuillez choisir le type de dépense (Carte de débit, Remboursement ou Payer la facture).';
   }
 
   const parsedAmount = parsePositiveAmountInput(input?.amountInput);

@@ -3,6 +3,10 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage, isFirebaseConfigured } from '../config/firebase';
 import { filterOfflineQueueForUser } from './sessionSecurity';
 import { generateSecureRandomToken } from './cryptoRandom';
+import {
+  normalizeBackendBaseUrl,
+  requestInvoicePaymentNotification,
+} from './bearerAuthHelpers';
 import type { AuthorizedComptabilite, Receipt } from '../types/receipt';
 import type { MobileUserProfile } from './authHelpers';
 import {
@@ -240,6 +244,21 @@ export const uploadVerifiedReceipt = async (params: {
       );
       await setDoc(receiptRef, receiptDoc);
 
+      if (receiptDoc.expenseType === 'INVOICE_PAYMENT') {
+        const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+        const backendUrl = normalizeBackendBaseUrl(
+          env?.VITE_API_URL,
+          'https://assocompta-backend-vkiznjrvtq-ew.a.run.app'
+        );
+        void requestInvoicePaymentNotification({
+          orgId: targetCompta.orgId,
+          comptaId: targetCompta.comptaId,
+          receiptId,
+          backendUrl,
+          getIdToken: () => auth?.currentUser?.getIdToken() ?? Promise.resolve(null),
+        });
+      }
+
       saveSubmittedReceiptLocally({
         orgId: targetCompta.orgId,
         orgName: targetCompta.orgName,
@@ -381,6 +400,21 @@ export const syncPendingOfflineReceipts = async (explicitUid?: string): Promise<
         item.receiptDoc.id
       );
       await setDoc(receiptRef, finalDoc);
+
+      if (finalDoc.expenseType === 'INVOICE_PAYMENT') {
+        const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+        const backendUrl = normalizeBackendBaseUrl(
+          env?.VITE_API_URL,
+          'https://assocompta-backend-vkiznjrvtq-ew.a.run.app'
+        );
+        void requestInvoicePaymentNotification({
+          orgId: item.orgId,
+          comptaId: item.comptaId,
+          receiptId: finalDoc.id,
+          backendUrl,
+          getIdToken: () => auth?.currentUser?.getIdToken() ?? Promise.resolve(null),
+        });
+      }
 
       removeOfflineReceiptFromQueue(item.queueId);
       saveSubmittedReceiptLocally({

@@ -79,6 +79,25 @@ export const resolveReceiptStatusBadge = (
     };
   }
 
+  if (receipt?.expenseType === 'INVOICE_PAYMENT') {
+    if (receipt.reimbursementStatus === 'REIMBURSED') {
+      return {
+        key: 'REIMBURSED',
+        label: '✅ Facture payée',
+      };
+    }
+    if (receipt.reimbursementStatus === 'REJECTED') {
+      return {
+        key: 'REJECTED',
+        label: '❌ Facture refusée',
+      };
+    }
+    return {
+      key: 'REIMBURSEMENT_PENDING',
+      label: '📄 Facture à payer (en attente)',
+    };
+  }
+
   if (receipt?.expenseType === 'REIMBURSEMENT') {
     if (receipt.reimbursementStatus === 'REIMBURSED') {
       return {

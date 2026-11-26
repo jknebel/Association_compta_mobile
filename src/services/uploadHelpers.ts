@@ -136,6 +136,7 @@ export const buildFirestoreReceiptPath = (
  */
 export const buildReceiptDocument = (params: BuildReceiptDocumentParams): Receipt => {
   const isReimbursement = params.expenseType === 'REIMBURSEMENT';
+  const isInvoicePayment = params.expenseType === 'INVOICE_PAYMENT';
   const cleanMerchant =
     typeof params.merchantName === 'string' ? params.merchantName.trim() : '';
   const cleanDescription =
@@ -156,7 +157,11 @@ export const buildReceiptDocument = (params: BuildReceiptDocumentParams): Receip
     extractedAmount: Math.round(params.extractedAmount * 100) / 100,
     isAnalyzed: true,
     linkedTransactionId: null,
-    expenseType: isReimbursement ? 'REIMBURSEMENT' : 'DEBIT_CARD',
+    expenseType: isReimbursement
+      ? 'REIMBURSEMENT'
+      : isInvoicePayment
+      ? 'INVOICE_PAYMENT'
+      : 'DEBIT_CARD',
     description: cleanDescription,
     merchantName: cleanMerchant,
     submittedByUid: params.submittedByUid.trim(),
@@ -175,6 +180,8 @@ export const buildReceiptDocument = (params: BuildReceiptDocumentParams): Receip
     if (cleanCity) {
       docObj.reimbursementCity = cleanCity;
     }
+  } else if (isInvoicePayment) {
+    docObj.reimbursementStatus = 'PENDING' as ReimbursementStatus;
   }
 
   return docObj;
