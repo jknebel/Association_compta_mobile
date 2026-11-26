@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   CreditCard,
+  FileText,
   Wallet,
   FolderKanban,
   RefreshCw,
@@ -253,28 +254,40 @@ export const ScanHomeScreen: React.FC<{ onUploadCompleted?: () => void }> = ({
         }}
       />
 
-      {/* Two Types of Expense info cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between">
+      {/* Three Types of Expense info cards */}
+      <div className="grid grid-cols-3 gap-2.5">
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
           <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center mb-2">
-            <CreditCard size={18} />
+            <CreditCard size={17} />
           </div>
           <div>
             <div className="text-xs font-bold text-slate-200">Carte du compte</div>
-            <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+            <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
               Dépense payée avec la carte de l'association
             </p>
           </div>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between">
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
           <div className="w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center mb-2">
-            <Wallet size={18} />
+            <Wallet size={17} />
           </div>
           <div>
             <div className="text-xs font-bold text-slate-200">Remboursement</div>
-            <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+            <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
               Frais avancés avec votre argent personnel
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-slate-900/80 border border-violet-800/40 rounded-xl p-3 flex flex-col justify-between">
+          <div className="w-8 h-8 rounded-lg bg-violet-600/20 text-violet-400 flex items-center justify-center mb-2">
+            <FileText size={17} />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-200">Payer la facture</div>
+            <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+              À régler par le caissier (sans IBAN)
             </p>
           </div>
         </div>

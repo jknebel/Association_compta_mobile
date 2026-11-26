@@ -24,3 +24,36 @@ body {
 .pt-safe {
   padding-top: env(safe-area-inset-top, 16px);
 }
+
+/* Animation de balayage visuel pendant la lecture OCR (image / PDF) */
+@keyframes ocr-scan-line {
+  0% {
+    top: 4%;
+    opacity: 0.35;
+  }
+  50% {
+    top: 90%;
+    opacity: 1;
+  }
+  100% {
+    top: 4%;
+    opacity: 0.35;
+  }
+}
+
+@keyframes ocr-progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-ocr-scan {
+  animation: ocr-scan-line 1.9s ease-in-out infinite;
+}
+
+.animate-ocr-progress {
+  animation: ocr-progress-slide 1.4s ease-in-out infinite;
+}

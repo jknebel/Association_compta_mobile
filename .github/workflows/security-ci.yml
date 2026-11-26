@@ -46,6 +46,7 @@ jobs:
           node src/services/__tests__/mutation.sec18.mjs
           node src/services/__tests__/mutation.invoicePayment.mjs
           node src/services/__tests__/mutation.pwaAutoUpdate.mjs
+          node src/services/__tests__/mutation.mobileUxOcr.mjs
 
       - name: Typecheck
         run: npm run typecheck
