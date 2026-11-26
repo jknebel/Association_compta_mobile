@@ -31,9 +31,23 @@ export const isValidEmailFormat = (email?: string | null): boolean => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(norm);
 };
 
-export const isExemptFromEmailVerification = (email?: string | null): boolean => {
+export const isExemptFromEmailVerification = (
+  email?: string | null,
+  rawExemptEmailsEnv?: string | null
+): boolean => {
   const norm = normalizeEmail(email);
   if (!norm) return false;
+  const raw =
+    rawExemptEmailsEnv !== undefined
+      ? rawExemptEmailsEnv
+      : (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_EXEMPT_VERIFICATION_EMAILS;
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    return raw
+      .split(/[,;]/)
+      .map((item) => item.trim().toLowerCase())
+      .filter((item) => item.includes('@'))
+      .includes(norm);
+  }
   return EXEMPT_VERIFICATION_EMAILS.includes(norm);
 };
 

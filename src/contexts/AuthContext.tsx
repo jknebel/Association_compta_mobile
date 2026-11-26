@@ -227,6 +227,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         let profile = buildMobileUserProfile(firebaseUser, firestoreData);
+        try {
+          const idTokenRes = await firebaseUser.getIdTokenResult();
+          if (idTokenRes?.claims?.superAdmin === true) {
+            profile = { ...profile, isAdmin: true };
+          }
+        } catch {
+          // Ignorer si getIdTokenResult échoue en mode hors-ligne
+        }
 
         // Si le nom de l'organisation est un simple code (ex. TDGL), tenter de récupérer le nom complet
         if (db && profile.orgId) {
