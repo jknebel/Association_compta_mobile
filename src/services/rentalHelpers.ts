@@ -17,12 +17,26 @@ export interface RentalStats {
   totalCount: number;
 }
 
+const generateSecureRentalToken = (byteLength: number = 4): string => {
+  const cryptoObj = globalThis.crypto;
+  if (!cryptoObj || typeof cryptoObj.getRandomValues !== 'function') {
+    throw new Error('Web Crypto CSPRNG indisponible.');
+  }
+  const buf = new Uint8Array(byteLength);
+  cryptoObj.getRandomValues(buf);
+  let hex = '';
+  for (let i = 0; i < buf.length; i += 1) {
+    hex += buf[i].toString(16).padStart(2, '0');
+  }
+  return hex;
+};
+
 export const sanitizeRentalToken = (rawToken?: string | null): string => {
   const cleaned =
     typeof rawToken === 'string'
       ? rawToken.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().slice(0, 8)
       : '';
-  return cleaned || Math.random().toString(36).substring(2, 8);
+  return cleaned || generateSecureRentalToken(4);
 };
 
 export const generateRentalId = (
