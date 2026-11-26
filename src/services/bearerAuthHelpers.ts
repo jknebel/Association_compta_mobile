@@ -97,3 +97,49 @@ export const requestBackendReceiptAnalysis = async (
 
   return (await response.json()) as AnalyzeVisionBackendPayload;
 };
+
+export interface NotifyInvoicePaymentParams {
+  orgId: string;
+  comptaId: string;
+  receiptId: string;
+  backendUrl: string;
+  getIdToken?: () => Promise<string | null | undefined>;
+  fetchImpl?: typeof fetch;
+}
+
+export const requestInvoicePaymentNotification = async (
+  params: NotifyInvoicePaymentParams
+): Promise<boolean> => {
+  const orgId = typeof params?.orgId === 'string' ? params.orgId.trim() : '';
+  const comptaId = typeof params?.comptaId === 'string' ? params.comptaId.trim() : '';
+  const receiptId = typeof params?.receiptId === 'string' ? params.receiptId.trim() : '';
+  if (!orgId || !comptaId || !receiptId) {
+    return false;
+  }
+
+  let idToken: string | null | undefined = null;
+  if (typeof params.getIdToken === 'function') {
+    try {
+      idToken = await params.getIdToken();
+    } catch {
+      idToken = null;
+    }
+  }
+  const cleanToken = sanitizeBearerToken(idToken);
+  if (!cleanToken) {
+    return false;
+  }
+
+  const fetchFn = params.fetchImpl ?? fetch;
+  const targetUrl = `${params.backendUrl.replace(/\/+$/, '')}/api/notify-invoice-payment`;
+  try {
+    const response = await fetchFn(targetUrl, {
+      method: 'POST',
+      headers: buildAnalyzeReceiptHeaders(cleanToken),
+      body: JSON.stringify({ orgId, comptaId, receiptId }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};

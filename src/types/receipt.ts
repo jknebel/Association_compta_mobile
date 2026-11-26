@@ -15,7 +15,7 @@ export enum ComptaRole {
   RESPONSABLE_LOCATION = 'responsable_location', // Responsable des locations de locaux (Compta de Groupe)
 }
 
-export type ExpenseType = 'DEBIT_CARD' | 'REIMBURSEMENT';
+export type ExpenseType = 'DEBIT_CARD' | 'REIMBURSEMENT' | 'INVOICE_PAYMENT';
 
 export type ReimbursementStatus = 'PENDING' | 'REIMBURSED' | 'REJECTED';
 
