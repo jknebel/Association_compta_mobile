@@ -2,6 +2,7 @@ import { collection, doc, getDocs, query, setDoc, where, deleteDoc } from 'fireb
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage, isFirebaseConfigured } from '../config/firebase';
 import { filterOfflineQueueForUser } from './sessionSecurity';
+import { generateSecureRandomToken } from './cryptoRandom';
 import type { AuthorizedComptabilite, Receipt } from '../types/receipt';
 import type { MobileUserProfile } from './authHelpers';
 import {
@@ -131,7 +132,7 @@ export const uploadVerifiedReceipt = async (params: {
   const { preparedFile, verifiedPayload, targetCompta, userProfile } = params;
 
   const timestampMs = Date.now();
-  const randomToken = Math.random().toString(36).slice(2, 8);
+  const randomToken = generateSecureRandomToken(8);
   const { receiptId } = generateReceiptIdentifiers(timestampMs, randomToken);
 
   const { contentType, extension } = resolveUploadContentTypeAndExtension(
