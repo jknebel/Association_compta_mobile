@@ -48,6 +48,7 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
   const imageInputRef = useRef<HTMLInputElement | null>(null);
 
   const [internalPrepared, setInternalPrepared] = useState<PreparedReceiptFile | null>(null);
+  const [pendingPrepared, setPendingPrepared] = useState<PreparedReceiptFile | null>(null);
   const [internalExtraction, setInternalExtraction] = useState<ReceiptExtractionResult | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isExtracting, setIsExtracting] = useState<boolean>(false);
@@ -55,7 +56,7 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const activePreparedFile =
-    externalPreparedFile !== undefined ? externalPreparedFile : internalPrepared;
+    (externalPreparedFile !== undefined ? externalPreparedFile : internalPrepared) ?? pendingPrepared;
   const activeExtraction =
     externalExtractionResult !== undefined ? externalExtractionResult : internalExtraction;
 
@@ -66,6 +67,7 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
 
     try {
       const prepared = await prepareReceiptFile(rawFile);
+      setPendingPrepared(prepared);
       if (externalPreparedFile === undefined) {
         setInternalPrepared(prepared);
       }
@@ -86,6 +88,7 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
     } finally {
       setIsProcessing(false);
       setIsExtracting(false);
+      setPendingPrepared(null);
       if (cameraInputRef.current) cameraInputRef.current.value = '';
       if (pdfInputRef.current) pdfInputRef.current.value = '';
       if (imageInputRef.current) imageInputRef.current.value = '';
@@ -198,24 +201,42 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
             </button>
           </div>
 
-          {/* Aperçu visuel (Image ou PDF) */}
-          <div className="rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex flex-col items-center justify-center">
+          {/* Aperçu visuel (Image ou PDF) avec animation de balayage pendant l'OCR */}
+          <div className="relative rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex flex-col items-center justify-center">
             {activePreparedFile.kind === 'image' ? (
               <img
                 src={activePreparedFile.previewUrl}
                 alt={activePreparedFile.originalName}
-                className="max-h-64 w-auto object-contain"
+                className={`max-h-64 w-auto object-contain transition-opacity duration-300 ${
+                  isExtracting ? 'opacity-65' : 'opacity-100'
+                }`}
               />
             ) : (
               <div className="w-full">
                 <iframe
                   src={activePreparedFile.previewUrl}
                   title={activePreparedFile.originalName}
-                  className="w-full h-56 bg-slate-900 border-b border-slate-800"
+                  className={`w-full h-56 bg-slate-900 border-b border-slate-800 transition-opacity duration-300 ${
+                    isExtracting ? 'opacity-65' : 'opacity-100'
+                  }`}
                 />
                 <div className="p-3 flex items-center gap-2.5 text-xs text-slate-300 bg-slate-950">
                   <FileText size={18} className="text-blue-400 shrink-0" />
                   <span className="truncate font-medium">{activePreparedFile.originalName}</span>
+                </div>
+              </div>
+            )}
+
+            {isExtracting && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="absolute inset-0 bg-slate-950/45 backdrop-blur-[1px] flex flex-col items-center justify-center pointer-events-none"
+              >
+                <div className="absolute left-2 right-2 h-1 rounded-full bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_16px_rgba(34,211,238,0.95)] animate-ocr-scan" />
+                <div className="px-3.5 py-2 rounded-xl bg-slate-950/90 border border-cyan-500/50 shadow-lg flex items-center gap-2 text-xs font-semibold text-cyan-200">
+                  <Loader2 size={15} className="animate-spin text-cyan-400 shrink-0" />
+                  <span>Lecture OCR de l&apos;image en cours…</span>
                 </div>
               </div>
             )}
@@ -268,9 +289,19 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
             </div>
 
             {isExtracting ? (
-              <div className="py-3 flex items-center justify-center gap-2 text-xs text-slate-400">
-                <Loader2 size={15} className="animate-spin text-blue-400" />
-                <span>Recherche du montant TTC et de la date…</span>
+              <div className="py-2.5 space-y-3" role="status" aria-live="polite">
+                <div className="flex items-center justify-center gap-2 text-xs font-medium text-cyan-200">
+                  <Loader2 size={15} className="animate-spin text-cyan-400 shrink-0" />
+                  <span>Lecture OCR en cours : montant, date et fournisseur…</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div className="w-1/3 h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-500 animate-ocr-progress" />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="h-11 rounded-lg bg-slate-900 border border-slate-800 animate-pulse" />
+                  <div className="h-11 rounded-lg bg-slate-900 border border-slate-800 animate-pulse" />
+                  <div className="h-11 rounded-lg bg-slate-900 border border-slate-800 animate-pulse" />
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-2 text-xs">
@@ -316,8 +347,17 @@ export const ReceiptDropZone: React.FC<ReceiptDropZoneProps> = ({
             onClick={() => onContinue?.(activePreparedFile, activeExtraction)}
             className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-60 text-white font-semibold py-3.5 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25"
           >
-            <span>Vérifier et envoyer ce justificatif</span>
-            <ArrowRight size={17} />
+            {isExtracting ? (
+              <>
+                <Loader2 size={17} className="animate-spin" />
+                <span>Analyse OCR en cours…</span>
+              </>
+            ) : (
+              <>
+                <span>Vérifier et envoyer ce justificatif</span>
+                <ArrowRight size={17} />
+              </>
+            )}
           </button>
         </div>
       ) : (
