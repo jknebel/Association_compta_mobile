@@ -136,9 +136,23 @@ export interface OrganizationSnapshotInput {
 /**
  * Vérifie si l'adresse e-mail correspond à un super-administrateur global.
  */
-export const isSuperAdminEmail = (email?: string | null): boolean => {
+export const isSuperAdminEmail = (
+  email?: string | null,
+  rawSuperAdminEmailsEnv?: string | null
+): boolean => {
   const norm = normalizeEmailLocal(email);
   if (!norm) return false;
+  const raw =
+    rawSuperAdminEmailsEnv !== undefined
+      ? rawSuperAdminEmailsEnv
+      : (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_SUPER_ADMIN_EMAILS;
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    return raw
+      .split(/[,;]/)
+      .map((item) => item.trim().toLowerCase())
+      .filter((item) => item.includes('@'))
+      .includes(norm);
+  }
   return SUPER_ADMIN_EMAILS.includes(norm);
 };
 

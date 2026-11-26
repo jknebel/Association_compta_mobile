@@ -15,3 +15,8 @@ web-build/
 .DS_Store
 google-services.json
 GoogleService-Info.plist
+.firebase/
+__pycache__/
+*.py[cod]
+* - Copie*
+.env.*
